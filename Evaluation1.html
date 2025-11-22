@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استمارة تقييم العرض التقديمي الفردي</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, addDoc, collection, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // === هام جداً: يرجى استبدال القيم الوهمية أدناه بإعدادات مشروعك الحقيقية ===
+        const DEFAULT_FIREBASE_CONFIG = {
+              apiKey: "AIzaSyCTyrQd0HXXnC2O__HAvgNv8P6_lrywDBc",
+  authDomain: "conceptsimplificationchallenge.firebaseapp.com",
+  projectId: "conceptsimplificationchallenge",
+  storageBucket: "conceptsimplificationchallenge.firebasestorage.app",
+  messagingSenderId: "653724968855",
+  appId: "1:653724968855:web:516b8280e65c95d3aec6d2",
+  measurementId: "G-RW21T2JLTF"
+        };
+        // ===============================================
+
+        // تهيئة المتغيرات الأساسية الخاصة بالبيئة
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : DEFAULT_FIREBASE_CONFIG;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // تعيين مستوى تسجيل الأخطاء
+        setLogLevel('error');
+
+        let db;
+        let auth;
+        let userId = null;
+
+        // Message Box Handler (Instead of alert/confirm)
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.className = 'p-3 rounded-lg shadow-md mt-4 text-white text-center transition-opacity duration-300';
+            
+            switch (type) {
+                case 'success':
+                    messageBox.classList.add('bg-green-600');
+                    break;
+                case 'error':
+                    messageBox.classList.add('bg-red-600');
+                    break;
+                case 'warning':
+                    messageBox.classList.add('bg-yellow-600');
+                    break;
+                case 'info':
+                default:
+                    messageBox.classList.add('bg-blue-600');
+                    break;
+            }
+            messageBox.style.opacity = '1';
+            
+            // إخفاء الرسالة تلقائيًا بعد 5 ثوانٍ
+            setTimeout(() => {
+                messageBox.style.opacity = '0';
+            }, 5000);
+        }
+        window.showMessage = showMessage;
+
+        // --- 1. Definining Path Helpers based on User's Request ---
+        
+        /**
+         * مسار قائمة المقيمين المتاحة (Evaluator Roster)
+         * المسار المطلوب من المستخدم: /artifacts/default-app-id/public/data/evaluators/...
+         * تم تعيين المسار إلى المجموعة (Collection)
+         */
+        function getEvaluatorRosterPath() {
+            return `artifacts/${appId}/public/data/evaluators`; 
+        }
+
+        /**
+         * مسار قائمة المتدربين (Trainee Roster)
+         * المسار المطلوب من المستخدم مع استبدال معرف المستخدم الثابت بالديناميكي
+         */
+        function getTraineeRosterPath() {
+            // هذا المسار خاص بالمتدربين المسجلين في مسار المستخدم الحالي
+            return `artifacts/${appId}/users/${userId}/final_day_entries`;
+        }
+
+        /**
+         * مسار حفظ نتائج التقييمات المكتملة (Evaluate1).
+         * المسار المطلوب من المستخدم: /artifacts/default-app-id/public/data/evaluate1
+         */
+        function getEvaluationSavePath() {
+            return `artifacts/${appId}/public/data/evaluate1`;
+        }
+        
+        /**
+         * دالة مساعدة لإنشاء عنصر الخيار (Option).
+         */
+        const addOption = (select, value, text, isDisabled = false) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            option.disabled = isDisabled;
+            select.appendChild(option);
+        };
+
+        /**
+         * تحميل أسماء المتدربين والمقيمين من المسارات المحددة في قاعدة البيانات.
+         */
+        async function loadNamesFromDatabase() {
+            const traineeSelect = document.getElementById('traineeName');
+            const evaluatorSelect = document.getElementById('evaluatorName');
+            
+            // حالة التحميل الأولية
+            traineeSelect.innerHTML = '';
+            evaluatorSelect.innerHTML = '';
+            addOption(traineeSelect, '', 'جاري تحميل المتدربين...', true);
+            addOption(evaluatorSelect, '', 'جاري تحميل المقيمين...', true);
+            traineeSelect.disabled = true;
+            evaluatorSelect.disabled = true;
+
+            try {
+                // --- 1. Load Evaluator Names (from 'evaluators' collection) ---
+                const evaluatorRosterPath = getEvaluatorRosterPath();
+                const evaluatorCollectionRef = collection(db, evaluatorRosterPath);
+                const evaluatorSnapshot = await getDocs(evaluatorCollectionRef);
+                const uniqueEvaluatorNames = new Set();
+                
+                evaluatorSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    // البحث عن حقل 'name' أو 'evaluatorName' لاسم المقيم
+                    const evaluatorName = data.name || data.evaluatorName; 
+                    if (evaluatorName) {
+                        uniqueEvaluatorNames.add(evaluatorName);
+                    }
+                });
+                
+                // تعبئة قائمة المقيمين المنسدلة
+                evaluatorSelect.innerHTML = '';
+                evaluatorSelect.disabled = false;
+                if (uniqueEvaluatorNames.size > 0) {
+                    addOption(evaluatorSelect, '', '--- اختر المقيم من قائمة المقيمين ---', true);
+                    Array.from(uniqueEvaluatorNames).sort().forEach(name => addOption(evaluatorSelect, name, name));
+                    showMessage(`تم تحميل ${uniqueEvaluatorNames.size} أسماء مقيمين من مسار: /.../evaluators`, 'success');
+                } else {
+                    addOption(evaluatorSelect, '', '!!! قائمة المقيمين فارغة (evaluators) !!!', true);
+                    showMessage(`تنبيه: قائمة المقيمين فارغة في المسار المحدد: ${evaluatorRosterPath}. الرجاء إضافة مقيمين.`, 'warning');
+                }
+
+
+                // --- 2. Load Trainee Names (from user-specific 'final_day_entries') ---
+                if (userId) {
+                    const traineeCollectionPath = getTraineeRosterPath();
+                    const traineeCollectionRef = collection(db, traineeCollectionPath);
+                    const traineeSnapshot = await getDocs(traineeCollectionRef);
+                    const uniqueTraineeNames = new Set();
+                    
+                    traineeSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const name = data.traineeName || data.name || data.fullName; // تجربة حقول شائعة
+                        if (name) {
+                            uniqueTraineeNames.add(name);
+                        }
+                    });
+                    
+                    // تعبئة قائمة المتدربين المنسدلة
+                    traineeSelect.innerHTML = '';
+                    traineeSelect.disabled = false;
+                    if (uniqueTraineeNames.size > 0) {
+                        addOption(traineeSelect, '', '--- اختر المتدرب ---', true);
+                        Array.from(uniqueTraineeNames).sort().forEach(name => addOption(traineeSelect, name, name));
+                        console.log(`Loaded ${uniqueTraineeNames.size} unique trainee names.`);
+                    } else {
+                        addOption(traineeSelect, '', '!!! لم يتم العثور على أسماء متدربين !!!', true);
+                        showMessage(`تنبيه: لا توجد أسماء متدربين في مسارك الخاص: ${traineeCollectionPath}.`, 'warning');
+                    }
+                } else {
+                    traineeSelect.innerHTML = '';
+                    addOption(traineeSelect, '', 'خطأ: لا يوجد معرف مستخدم لتحميل المتدربين.', true);
+                }
+
+            } catch (error) {
+                console.error("Error loading names from database:", error);
+                evaluatorSelect.innerHTML = '';
+                traineeSelect.innerHTML = '';
+                addOption(evaluatorSelect, '', 'فشل تحميل المقيمين (خطأ اتصال)', true);
+                addOption(traineeSelect, '', 'فشل تحميل المتدربين (خطأ اتصال)', true);
+                showMessage(`خطأ في جلب الأسماء. ${error.message}`, "error");
+            }
+        }
+
+        // Function to set up Firebase and Authentication
+        async function setupFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    showMessage("خطأ: إعدادات Firebase مفقودة.", "error");
+                    return;
+                }
+                
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Authenticated successfully. User ID:", userId);
+                        
+                        // 1. Load names from the specified collections
+                        await loadNamesFromDatabase();
+
+                        // 2. Enable saving
+                        document.getElementById('saveButton').disabled = false;
+                        document.getElementById('saveButton').textContent = 'حفظ التقييم';
+                    } else {
+                        console.log("Not authenticated.");
+                        userId = null;
+                        document.getElementById('saveButton').disabled = true;
+                        document.getElementById('saveButton').textContent = 'جاري التحقق من الاتصال...';
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase setup error:", error);
+                showMessage(`خطأ في تهيئة Firebase: ${error.message}`, "error");
+            }
+        }
+
+        // Global function to calculate score
+        window.calculateTotalScore = () => {
+            let total = 0;
+            const criteria = [
+                'clarity', 'opening', 'organization', 'bodylang', 
+                'voice', 'visuals', 'interaction', 'persuasion', 
+                'time', 'conclusion'
+            ];
+            
+            criteria.forEach(name => {
+                const checkedRadio = document.querySelector(`input[name="score_${name}"]:checked`);
+                if (checkedRadio) {
+                    total += parseInt(checkedRadio.value, 10);
+                }
+            });
+
+            document.getElementById('totalScoreDisplay').textContent = total;
+        };
+
+        // Global function to submit evaluation
+        window.submitEvaluation = async () => {
+            if (!db || !userId) {
+                showMessage("الرجاء الانتظار حتى يتم التحقق من الاتصال.", "error");
+                return;
+            }
+
+            const traineeName = document.getElementById('traineeName').value;
+            const evaluatorName = document.getElementById('evaluatorName').value;
+            const generalComment = document.getElementById('generalComment').value.trim();
+            const totalScore = parseInt(document.getElementById('totalScoreDisplay').textContent, 10);
+            
+            // التاريخ والوقت التلقائي
+            const submissionTime = new Date().toLocaleString('ar-EG', { 
+                year: 'numeric', month: 'long', day: 'numeric', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+            });
+
+
+            if (!traineeName || !evaluatorName) {
+                showMessage("الرجاء اختيار اسم المتدرب واسم المقيم من القائمة المنسدلة.", "warning");
+                return;
+            }
+            
+            // جمع الدرجات والتحقق من الاكتمال
+            const scores = {};
+            let isFormComplete = true;
+            const criteriaNames = [
+                'clarity', 'opening', 'organization', 'bodylang', 
+                'voice', 'visuals', 'interaction', 'persuasion', 
+                'time', 'conclusion'
+            ];
+
+            criteriaNames.forEach(key => {
+                const checkedRadio = document.querySelector(`input[name="score_${key}"]:checked`);
+                if (checkedRadio) {
+                    scores[key] = parseInt(checkedRadio.value, 10);
+                } else {
+                    isFormComplete = false;
+                }
+            });
+
+            if (!isFormComplete) {
+                showMessage("الرجاء تقييم جميع المعايير العشرة.", "warning");
+                return;
+            }
+
+            const evaluationData = {
+                traineeName,
+                evaluatorName: evaluatorName, 
+                submissionTime,
+                generalComment,
+                totalScore,
+                scores,
+                // بيانات التعريف للمتابعة
+                evaluatorId: userId,
+                timestampISO: new Date().toISOString(),
+                appId: appId,
+            };
+
+            const saveButton = document.getElementById('saveButton');
+            saveButton.disabled = true;
+            saveButton.textContent = 'جاري الحفظ...';
+
+            try {
+                // حفظ المستند في المسار evaluate1
+                const docRef = await addDoc(collection(db, getEvaluationSavePath()), evaluationData);
+                showMessage(`تم حفظ التقييم بنجاح في مسار evaluate1! رقم المستند: ${docRef.id}.`, "success");
+                
+                // إعادة تعيين حقول النموذج
+                document.getElementById('evaluationForm').reset();
+                document.getElementById('totalScoreDisplay').textContent = 0;
+            } catch (e) {
+                console.error("Error adding document to Firestore: ", e);
+                showMessage(`فشل الحفظ. خطأ: ${e.message}. تأكد من نشر قواعد الأمان الصحيحة.`, "error");
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'حفظ التقييم';
+            }
+        };
+
+        // تهيئة Firebase عند تحميل النافذة
+        window.onload = setupFirebase;
+        
+    </script>
+    <style>
+        /* Custom styles for the responsive layout and Arabic font */
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .score-input:checked + label {
+            background-color: #10b981; /* Emerald 500 */
+            color: white;
+            border-color: #059669;
+            transform: scale(1.05);
+        }
+        /* Hide radio button dot */
+        .score-input {
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-10 rounded-xl shadow-2xl border border-gray-100">
+        
+        <h1 class="text-3xl font-bold mb-6 text-center text-teal-700 border-b-2 pb-2 border-teal-100">
+            استمارة تقييم العرض التقديمي الفردي
+        </h1>
+
+        <!-- Message Box -->
+        <div id="messageBox" class="p-3 rounded-lg shadow-md mt-4 text-white text-center opacity-0 transition-opacity duration-300"></div>
+
+        <form id="evaluationForm" onsubmit="event.preventDefault(); submitEvaluation();">
+            
+            <!-- 1. General Info Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-gray-50 p-4 rounded-lg">
+                <div class="flex flex-col">
+                    <label for="traineeName" class="mb-1 text-sm font-semibold text-gray-700">اسم المتدرب (من مسار final_day_entries):</label>
+                    <select id="traineeName" required disabled class="p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 transition duration-150 bg-white">
+                        <option value="">جاري تحميل القائمة...</option>
+                    </select>
+                </div>
+                <div class="flex flex-col">
+                    <label for="evaluatorName" class="mb-1 text-sm font-semibold text-gray-700">اسم المقيم (من مسار evaluators):</label>
+                    <!-- Evaluator Select Element -->
+                    <select id="evaluatorName" required disabled class="p-2 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 transition duration-150 bg-white">
+                        <option value="">جاري تحميل المقيمين...</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Information about auto-date -->
+            <p class="text-sm text-center text-gray-500 mb-6 py-2 border-b">
+                ** يتم تسجيل التاريخ والوقت تلقائياً عند حفظ التقييم في مسار evaluate1 **
+            </p>
+
+
+            <!-- 2. Evaluation Criteria Table -->
+            <div class="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-teal-600 text-white">
+                        <tr>
+                            <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider w-1/4">المعيار</th>
+                            <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wider w-1/2">الوصف</th>
+                            <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wider w-1/4">الدرجة (من 5)</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                        
+                        <!-- Helper function to generate a row -->
+                        <script>
+                            function generateRow(id, criteria, description) {
+                                let rowHtml = `
+                                    <tr class="hover:bg-teal-50/50">
+                                        <td class="px-3 py-3 font-medium text-gray-900">${criteria}</td>
+                                        <td class="px-3 py-3 text-gray-600">${description}</td>
+                                        <td class="px-3 py-3 text-center">
+                                            <div class="flex justify-center space-x-1 rtl:space-x-reverse">
+                                `;
+                                for (let i = 1; i <= 5; i++) {
+                                    rowHtml += `
+                                        <input type="radio" id="score_${id}_${i}" name="score_${id}" value="${i}" class="score-input" onchange="calculateTotalScore()" required>
+                                        <label for="score_${id}_${i}" class="text-xs w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 cursor-pointer text-gray-600 hover:bg-gray-100 transition duration-150">${i}</label>
+                                    `;
+                                }
+                                rowHtml += `
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                                document.write(rowHtml);
+                            }
+                        </script>
+                        
+                        <!-- CRITERIA ROWS -->
+                        <script>
+                            generateRow('clarity', 'وضوح الفكرة', 'هل كانت الرسالة الأساسية واضحة وسهلة الفهم؟');
+                            generateRow('opening', 'افتتاحية العرض', 'هل كانت البداية جذابة ومؤثرة؟');
+                            generateRow('organization', 'تنظيم المحتوى', 'هل تسلسل العرض منطقي وسهل المتابعة؟');
+                            generateRow('bodylang', 'لغة الجسد', 'هل استخدم المتحدث حركات طبيعية وتواصل بصري مناسب؟');
+                            generateRow('voice', 'نبرة الصوت', 'هل استخدم المتحدث نبرة صوت متنوّعة وواضحة؟');
+                            generateRow('visuals', 'الوسائل البصرية', 'هل دعمت الشرائح الفكرة بدل أن تشتتها؟');
+                            generateRow('interaction', 'التفاعل مع الجمهور', 'هل تجاوب المتحدث مع الحضور أو الأسئلة بثقة؟');
+                            generateRow('persuasion', 'الإقناع والتأثير', 'هل ترك العرض أثرًا واضحًا لدى الحضور؟');
+                            generateRow('time', 'إدارة الوقت', 'هل التزم المتحدث بالوقت المخصص؟');
+                            generateRow('conclusion', 'الخاتمة', 'هل كانت النهاية قوية وتُلخص الرسالة بوضوح؟');
+                        </script>
+
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 3. Total Score and General Comment -->
+            <div class="mt-8">
+                
+                <!-- Total Score Display -->
+                <div class="flex justify-end items-center mb-6 p-4 bg-teal-50 rounded-lg border-r-4 border-teal-500 shadow-inner">
+                    <span class="text-xl font-bold text-gray-700 ml-4">إجمالي الدرجات:</span>
+                    <span id="totalScoreDisplay" class="text-3xl font-extrabold text-teal-700">0</span>
+                    <span class="text-xl font-bold text-gray-700 mr-2">/ 50</span>
+                </div>
+
+                <!-- General Comment -->
+                <label for="generalComment" class="mb-2 block text-lg font-semibold text-gray-700">تعليق عام:</label>
+                <textarea id="generalComment" rows="4" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-teal-500 focus:border-teal-500 transition duration-150 shadow-sm" placeholder="اكتب ملاحظاتك وتقييمك العام هنا..."></textarea>
+            </div>
+
+            <!-- 4. Submit Button -->
+            <div class="mt-8 text-center">
+                <button type="submit" id="saveButton" disabled 
+                        class="px-8 py-3 bg-teal-600 text-white font-bold rounded-full shadow-lg hover:bg-teal-700 transition duration-200 focus:outline-none focus:ring-4 focus:ring-teal-500 focus:ring-opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    جاري التحقق من الاتصال...
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إضافة المقيمين</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container {
+            max-width: 600px;
+        }
+        .loading-spinner {
+            border: 4px solid rgba(16, 185, 129, 0.3); /* Green-400 */
+            border-radius: 50%;
+            border-top: 4px solid #10B981; /* Green-500 */
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div id="app" class="container mx-auto bg-white p-6 rounded-xl shadow-2xl border-t-8 border-emerald-500">
+        <header class="mb-6 border-b pb-4">
+            <h1 class="text-3xl font-extrabold text-gray-800">إضافة مقيّم جديد</h1>
+            <p class="text-gray-500 mt-1">يتم إضافة المقيمين في هذا المسار ومشاركتهم مع جميع المستخدمين.</p>
+        </header>
+
+        <!-- حالة التحميل والخطأ -->
+        <div id="loading-status" class="text-center p-6 text-emerald-600">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p>جارِ الاتصال بـ Firebase وتجهيز الخدمة...</p>
+        </div>
+        
+        <div id="error-message" class="hidden p-4 bg-red-100 text-red-700 border-r-4 border-red-500 rounded mb-6 shadow-md">
+            <p class="font-bold">خطأ في الاتصال/الصلاحيات:</p>
+            <p id="error-text"></p>
+        </div>
+
+        <form id="evaluator-form" class="space-y-4 hidden">
+            <!-- عرض معرف المستخدم للتأكد -->
+            <p class="text-xs text-gray-500 text-left mb-4 p-2 bg-gray-50 rounded">
+                <span class="font-bold">معرف المستخدم الحالي:</span> 
+                <span id="user-id-display" class="break-all ltr text-gray-700">...</span>
+            </p>
+
+            <div>
+                <label for="evaluatorName" class="block text-sm font-medium text-gray-700 mb-1">اسم المقيّم بالكامل</label>
+                <input type="text" id="evaluatorName" required 
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-emerald-500 focus:border-emerald-500" 
+                       placeholder="مثال: د. إبراهيم صالح">
+            </div>
+
+            <button type="submit" id="submit-button" 
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition duration-150 ease-in-out">
+                تسجيل اسم المقيّم
+            </button>
+            <div id="submission-status" class="mt-4 p-3 rounded-lg text-sm text-center hidden"></div>
+        </form>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, collection, addDoc, serverTimestamp, setLogLevel 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ===============================================
+        // إعدادات Firebase
+        // ===============================================
+        
+        // === هام جداً: يرجى استبدال القيم الوهمية أدناه بإعدادات مشروعك الحقيقية ===
+        const DEFAULT_FIREBASE_CONFIG = {
+              apiKey: "AIzaSyCTyrQd0HXXnC2O__HAvgNv8P6_lrywDBc",
+  authDomain: "conceptsimplificationchallenge.firebaseapp.com",
+  projectId: "conceptsimplificationchallenge",
+  storageBucket: "conceptsimplificationchallenge.firebasestorage.app",
+  messagingSenderId: "653724968855",
+  appId: "1:653724968855:web:516b8280e65c95d3aec6d2",
+  measurementId: "G-RW21T2JLTF"
+        };
+        // ===============================================
+
+        // تهيئة المتغيرات الأساسية الخاصة بالبيئة
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : DEFAULT_FIREBASE_CONFIG;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let auth;
+        let db;
+        let userId = null;
+        let isAuthReady = false;
+
+        // العناصر
+        const loadingStatus = document.getElementById('loading-status');
+        const evaluatorForm = document.getElementById('evaluator-form');
+        const submitButton = document.getElementById('submit-button');
+        const submissionStatus = document.getElementById('submission-status');
+        const errorDiv = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const userIdDisplay = document.getElementById('user-id-display');
+
+        // دالة لعرض الأخطاء
+        function displayError(message) {
+            errorText.textContent = message;
+            errorDiv.classList.remove('hidden');
+            loadingStatus.classList.add('hidden');
+            evaluatorForm.classList.add('hidden');
+        }
+
+        // ===============================================
+        // تهيئة Firebase والتوثيق
+        // ===============================================
+        async function initializeFirebase() {
+             // التحقق من الإعدادات الاحتياطية قبل التهيئة
+            if (firebaseConfig === DEFAULT_FIREBASE_CONFIG && (firebaseConfig.apiKey === "PASTE_YOUR_API_KEY_HERE" || firebaseConfig.projectId === "PASTE_YOUR_PROJECT_ID_HERE")) {
+                displayError("خطأ في التهيئة: يرجى استبدال القيم الوهمية (PASTE_YOUR_API_KEY...) بالإعدادات الحقيقية لمشروعك.");
+                return;
+            }
+
+            try {
+                setLogLevel('Debug');
+                
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        isAuthReady = true;
+                        loadingStatus.classList.add('hidden');
+                        evaluatorForm.classList.remove('hidden');
+                    } else {
+                        await authenticateUser();
+                    }
+                });
+                
+                if (!auth.currentUser) {
+                     await authenticateUser();
+                }
+
+            } catch (e) {
+                displayError(`فشل في تهيئة Firebase. يرجى مراجعة مفتاح API ومعرّف المشروع: ${e.message}`);
+                console.error("Firebase Initialization Error:", e);
+            }
+        }
+
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                displayError(`فشل في تسجيل الدخول. تأكد من صحة إعدادات Firebase ومن تفعيل التوثيق المجهول في مشروعك: ${e.message}.`);
+                console.error("Authentication Error:", e);
+            }
+        }
+
+        // ===============================================
+        // وظيفة إضافة المستند (Add Document) للمقيمين
+        // ===============================================
+
+        function getCollectionPath() {
+            // المسار: /artifacts/{appId}/public/data/evaluators
+            return `artifacts/${appId}/public/data/evaluators`;
+        }
+
+        evaluatorForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!isAuthReady || !db) {
+                displayError("الخدمة غير جاهزة بعد، يرجى الانتظار لحين الانتهاء من التوثيق.");
+                return;
+            }
+            
+            const evaluatorName = document.getElementById('evaluatorName').value;
+
+            submitButton.disabled = true;
+            submitButton.textContent = 'جارِ التسجيل...';
+            submissionStatus.classList.add('hidden');
+
+            try {
+                const docRef = await addDoc(collection(db, getCollectionPath()), {
+                    name: evaluatorName,
+                    created: serverTimestamp(),
+                    // لا نحتاج لـ userId هنا لأنه بيان عام يضيفه أي مستخدم
+                });
+
+                submissionStatus.classList.remove('hidden', 'bg-red-100', 'text-red-700');
+                submissionStatus.classList.add('bg-green-100', 'text-green-700');
+                submissionStatus.textContent = `تم تسجيل المقيّم بنجاح! ID: ${docRef.id}`;
+                
+                evaluatorForm.reset(); // تفريغ النموذج بعد النجاح
+
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                // عرض الخطأ للمستخدم
+                submissionStatus.classList.remove('hidden', 'bg-green-100', 'text-green-700');
+                submissionStatus.classList.add('bg-red-100', 'text-red-700');
+                submissionStatus.textContent = `فشل في تسجيل البيانات: ${e.message}`;
+                displayError(e.message);
+
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'تسجيل اسم المقيّم';
+            }
+        });
+
+        // بدء تهيئة التطبيق
+        initializeFirebase();
+    </script>
+
+</body>
+</html>

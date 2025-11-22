@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدخال بيانات المتدربين اليوم النهائي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f7f9fb;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div id="app" class="max-w-md mx-auto bg-white p-6 sm:p-8 rounded-xl shadow-2xl border-t-4 border-violet-500">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6 text-center">
+            إدخال بيانات المتدربين - اليوم النهائي
+        </h1>
+        
+        <!-- رسالة الخطأ والنجاح -->
+        <div id="message-area" class="mb-4 hidden"></div>
+
+        <form id="trainee-form" class="space-y-4">
+            
+            <div>
+                <label for="traineeName" class="block text-sm font-medium text-gray-700">اسم المتدرب (مطلوب)</label>
+                <input 
+                    type="text" 
+                    id="traineeName" 
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-violet-500 focus:border-violet-500"
+                    placeholder="مثل: محمد أحمد"
+                    required
+                >
+            </div>
+
+            <div>
+                <label for="presentationTitle" class="block text-sm font-medium text-gray-700">عنوان العرض التقديمي (مطلوب)</label>
+                <input 
+                    type="text" 
+                    id="presentationTitle" 
+                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-violet-500 focus:border-violet-500"
+                    placeholder="مثل: مهارات القيادة الفعالة"
+                    required
+                >
+            </div>
+            
+            <button 
+                type="submit" 
+                id="submit-button"
+                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-violet-600 hover:bg-violet-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 transition duration-150 ease-in-out disabled:opacity-50"
+            >
+                <span id="button-text">تسجيل البيانات</span>
+                <svg id="loading-spinner" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+        </form>
+        
+        <!-- عرض معرف المستخدم للمساعدة في تصحيح الأخطاء -->
+        <p class="text-xs text-gray-400 mt-6 text-center">
+            <span class="font-bold">معرف المستخدم:</span> 
+            <span id="user-id-display" class="break-all ltr">...</span>
+        </p>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, setPersistence, browserLocalPersistence 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { 
+            getFirestore, collection, addDoc, serverTimestamp, setLogLevel 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // ===============================================
+        // إعدادات Firebase
+        // ===============================================
+
+        // === هام جداً: عند التشغيل خارج بيئة Canvas، يجب استبدال القيم الوهمية أدناه بإعدادات مشروعك الحقيقية ===
+        const DEFAULT_FIREBASE_CONFIG = {
+              apiKey: "AIzaSyCTyrQd0HXXnC2O__HAvgNv8P6_lrywDBc",
+  authDomain: "conceptsimplificationchallenge.firebaseapp.com",
+  projectId: "conceptsimplificationchallenge",
+  storageBucket: "conceptsimplificationchallenge.firebasestorage.app",
+  messagingSenderId: "653724968855",
+  appId: "1:653724968855:web:516b8280e65c95d3aec6d2",
+  measurementId: "G-RW21T2JLTF"
+        };
+        // ===============================================
+
+        // تهيئة المتغيرات الأساسية الخاصة بالبيئة
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        // استخدام الإعدادات التلقائية (في Canvas) أو الاحتياطية (خارج Canvas)
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : DEFAULT_FIREBASE_CONFIG;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let auth;
+        let db;
+        let userId = null;
+        let isAuthReady = false;
+
+        // العناصر
+        const form = document.getElementById('trainee-form');
+        const nameInput = document.getElementById('traineeName');
+        const titleInput = document.getElementById('presentationTitle');
+        const submitButton = document.getElementById('submit-button');
+        const buttonText = document.getElementById('button-text');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const messageArea = document.getElementById('message-area');
+        const userIdDisplay = document.getElementById('user-id-display');
+
+        // ===============================================
+        // وظائف الواجهة
+        // ===============================================
+
+        function showLoading(isLoading) {
+            submitButton.disabled = isLoading;
+            if (isLoading) {
+                buttonText.textContent = 'جاري التسجيل...';
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                buttonText.textContent = 'تسجيل البيانات';
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        function displayMessage(type, message) {
+            messageArea.classList.remove('hidden', 'bg-red-100', 'text-red-700', 'bg-green-100', 'text-green-700', 'border-red-500', 'border-green-500');
+            messageArea.classList.add(
+                type === 'success' ? 'bg-green-100' : 'bg-red-100',
+                type === 'success' ? 'text-green-700' : 'text-red-700',
+                'p-3', 'rounded-lg', 'border-r-4',
+                type === 'success' ? 'border-green-500' : 'border-red-500'
+            );
+            messageArea.innerHTML = `<p>${message}</p>`;
+
+            // إخفاء الرسالة بعد 5 ثوانٍ
+            setTimeout(() => {
+                messageArea.classList.add('hidden');
+            }, 5000);
+        }
+
+        // ===============================================
+        // تهيئة Firebase والتوثيق
+        // ===============================================
+        async function initializeFirebase() {
+            // التحقق من الإعدادات الاحتياطية قبل التهيئة
+            if (firebaseConfig === DEFAULT_FIREBASE_CONFIG && (firebaseConfig.apiKey === "YOUR_API_KEY" || firebaseConfig.projectId === "YOUR_PROJECT_ID")) {
+                displayMessage('error', "خطأ في التهيئة: يرجى استبدال القيم الوهمية (YOUR_API_KEY/YOUR_PROJECT_ID) في كائن DEFAULT_FIREBASE_CONFIG بالإعدادات الحقيقية لمشروعك.");
+                return;
+            }
+
+            try {
+                // تفعيل وضع التصحيح
+                setLogLevel('Debug');
+                
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // حفظ حالة التوثيق في المتصفح
+                await setPersistence(auth, browserLocalPersistence);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        isAuthReady = true;
+                    } else {
+                        await authenticateUser();
+                    }
+                });
+                
+                if (!auth.currentUser) {
+                     await authenticateUser();
+                }
+
+            } catch (e) {
+                // قد يحدث هنا خطأ CONFIGURATION_NOT_FOUND إذا كانت الإعدادات المدخلة غير صحيحة
+                displayMessage('error', `فشل في تهيئة Firebase. يرجى مراجعة مفتاح API ومعرّف المشروع: ${e.message}`);
+                console.error("Firebase Initialization Error:", e);
+            }
+        }
+
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (e) {
+                // هذا هو المكان الذي يحدث فيه خطأ 400 CONFIGURATION_NOT_FOUND إذا كانت الإعدادات خاطئة
+                displayMessage('error', `فشل في تسجيل الدخول. تأكد من صحة إعدادات Firebase ومن تفعيل التوثيق المجهول في مشروعك: ${e.message}.`);
+                console.error("Authentication Error:", e);
+            }
+        }
+
+
+        // ===============================================
+        // وظائف Firestore لحفظ البيانات
+        // ===============================================
+
+        function getCollectionRef() {
+            if (!db || !userId) return null;
+            // المسار: /artifacts/{appId}/users/{userId}/final_day_entries
+            return collection(db, `artifacts/${appId}/users/${userId}/final_day_entries`);
+        }
+
+        async function saveTraineeEntry(data) {
+            if (!isAuthReady || !db) {
+                displayMessage('error', "الخدمة غير جاهزة بعد، يرجى الانتظار قليلاً والمحاولة مجدداً. (تأكد من إعدادات Firebase)");
+                return;
+            }
+            
+            showLoading(true);
+            const entriesRef = getCollectionRef();
+
+            try {
+                const docRef = await addDoc(entriesRef, {
+                    ...data,
+                    created: serverTimestamp(),
+                });
+                
+                displayMessage('success', `تم تسجيل بيانات المتدرب بنجاح! رقم الوثيقة: ${docRef.id}`);
+                form.reset();
+                nameInput.focus(); // العودة للخانة الأولى
+                
+            } catch (e) {
+                console.error("Error adding document: ", e);
+                displayMessage('error', `فشل في حفظ البيانات: ${e.message}`);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // ===============================================
+        // معالج حدث الإرسال
+        // ===============================================
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const traineeName = nameInput.value.trim();
+            const presentationTitle = titleInput.value.trim();
+            
+            if (traineeName === "" || presentationTitle === "") {
+                displayMessage('error', "الرجاء إدخال اسم المتدرب وعنوان العرض.");
+                return;
+            }
+            
+            const data = {
+                traineeName: traineeName,
+                presentationTitle: presentationTitle
+            };
+            
+            saveTraineeEntry(data);
+        });
+
+        // بدء تهيئة التطبيق
+        initializeFirebase();
+
+    </script>
+
+</body>
+</html>

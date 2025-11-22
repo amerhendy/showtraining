@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استمارة تقييم الزملاء (Peer Evaluation)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, addDoc, collection, getDocs, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // === هام جداً: يرجى استبدال القيم الوهمية أدناه بإعدادات مشروعك الحقيقية ===
+        const DEFAULT_FIREBASE_CONFIG = {
+              apiKey: "AIzaSyCTyrQd0HXXnC2O__HAvgNv8P6_lrywDBc",
+  authDomain: "conceptsimplificationchallenge.firebaseapp.com",
+  projectId: "conceptsimplificationchallenge",
+  storageBucket: "conceptsimplificationchallenge.firebasestorage.app",
+  messagingSenderId: "653724968855",
+  appId: "1:653724968855:web:516b8280e65c95d3aec6d2",
+  measurementId: "G-RW21T2JLTF"
+        };
+        // ===============================================
+
+        // تهيئة المتغيرات الأساسية الخاصة بالبيئة
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : DEFAULT_FIREBASE_CONFIG;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // تعيين مستوى تسجيل الأخطاء
+        setLogLevel('error');
+
+        let db;
+        let auth;
+        let userId = null;
+
+        // Message Box Handler (Instead of alert/confirm)
+        function showMessage(message, type = 'info') {
+            const messageBox = document.getElementById('messageBox');
+            messageBox.textContent = message;
+            messageBox.className = 'p-3 rounded-lg shadow-md mt-4 text-white text-center transition-opacity duration-300';
+            
+            switch (type) {
+                case 'success':
+                    messageBox.classList.add('bg-green-600');
+                    break;
+                case 'error':
+                    messageBox.classList.add('bg-red-600');
+                    break;
+                case 'warning':
+                    messageBox.classList.add('bg-yellow-600');
+                    break;
+                case 'info':
+                default:
+                    messageBox.classList.add('bg-blue-600');
+                    break;
+            }
+            messageBox.style.opacity = '1';
+            
+            // إخفاء الرسالة تلقائيًا بعد 5 ثوانٍ
+            setTimeout(() => {
+                messageBox.style.opacity = '0';
+            }, 5000);
+        }
+        window.showMessage = showMessage;
+
+        // --- 1. Definining Path Helpers ---
+        
+        /**
+         * مسار قائمة المتحدثين/المتدربين (Trainee Roster)
+         */
+        function getTraineeRosterPath() {
+            // هذا هو المسار الذي يتم منه جلب أسماء المتدربين/المتحدثين
+            return `artifacts/${appId}/users/${userId}/final_day_entries`;
+        }
+
+        /**
+         * مسار حفظ نتائج تقييم الزملاء (Evaluate2).
+         */
+        function getPeerEvaluationSavePath() {
+            return `artifacts/${appId}/public/data/evaluate2`;
+        }
+        
+        /**
+         * دالة مساعدة لإنشاء عنصر الخيار (Option).
+         */
+        const addOption = (select, value, text, isDisabled = false) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            option.disabled = isDisabled;
+            select.appendChild(option);
+        };
+
+        /**
+         * تحميل أسماء المتحدثين/المتدربين من مسار final_day_entries
+         */
+        async function loadNamesFromDatabase() {
+            const speakerSelect = document.getElementById('speakerName');
+            
+            // حالة التحميل الأولية
+            speakerSelect.innerHTML = '';
+            addOption(speakerSelect, '', 'جاري تحميل المتحدثين...', true);
+            speakerSelect.disabled = true;
+
+            try {
+                if (userId) {
+                    const traineeCollectionPath = getTraineeRosterPath();
+                    const traineeCollectionRef = collection(db, traineeCollectionPath);
+                    const traineeSnapshot = await getDocs(traineeCollectionRef);
+                    const uniqueTraineeNames = new Set();
+                    
+                    traineeSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        const name = data.traineeName || data.name || data.fullName; // تجربة حقول شائعة
+                        if (name) {
+                            uniqueTraineeNames.add(name);
+                        }
+                    });
+                    
+                    // تعبئة قائمة المتحدثين المنسدلة
+                    speakerSelect.innerHTML = '';
+                    speakerSelect.disabled = false;
+                    if (uniqueTraineeNames.size > 0) {
+                        addOption(speakerSelect, '', '--- اختر المتحدث الذي تقيّمه ---', true);
+                        Array.from(uniqueTraineeNames).sort().forEach(name => addOption(speakerSelect, name, name));
+                        showMessage(`تم تحميل ${uniqueTraineeNames.size} أسماء متحدثين من مسارك الخاص.`, 'success');
+                    } else {
+                        addOption(speakerSelect, '', '!!! لم يتم العثور على أسماء متحدثين !!!', true);
+                        showMessage(`تنبيه: لا توجد أسماء متحدثين في المسار المحدد: ${traineeCollectionPath}.`, 'warning');
+                    }
+                } else {
+                    speakerSelect.innerHTML = '';
+                    addOption(speakerSelect, '', 'خطأ: لا يوجد معرف مستخدم لتحميل المتحدثين.', true);
+                }
+
+            } catch (error) {
+                console.error("Error loading names from database:", error);
+                speakerSelect.innerHTML = '';
+                addOption(speakerSelect, '', 'فشل تحميل المتحدثين (خطأ اتصال)', true);
+                showMessage(`خطأ في جلب الأسماء. ${error.message}`, "error");
+            }
+        }
+
+        // Function to set up Firebase and Authentication
+        async function setupFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    showMessage("خطأ: إعدادات Firebase مفقودة.", "error");
+                    return;
+                }
+                
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Authenticated successfully. User ID:", userId);
+                        
+                        // 1. Load names from the specified collections
+                        await loadNamesFromDatabase();
+
+                        // 2. Enable saving
+                        document.getElementById('saveButton').disabled = false;
+                        document.getElementById('saveButton').textContent = 'حفظ تقييم الزميل';
+                    } else {
+                        console.log("Not authenticated.");
+                        userId = null;
+                        document.getElementById('saveButton').disabled = true;
+                        document.getElementById('saveButton').textContent = 'جاري التحقق من الاتصال...';
+                    }
+                });
+
+            } catch (error) {
+                console.error("Firebase setup error:", error);
+                showMessage(`خطأ في تهيئة Firebase: ${error.message}`, "error");
+            }
+        }
+
+        // Global function to submit evaluation
+        window.submitEvaluation = async () => {
+            if (!db || !userId) {
+                showMessage("الرجاء الانتظار حتى يتم التحقق من الاتصال.", "error");
+                return;
+            }
+
+            const speakerName = document.getElementById('speakerName').value;
+            const likes = document.getElementById('likes').value.trim();
+            const advice = document.getElementById('advice').value.trim();
+            
+            // التاريخ والوقت التلقائي
+            const submissionTime = new Date().toLocaleString('ar-EG', { 
+                year: 'numeric', month: 'long', day: 'numeric', 
+                hour: '2-digit', minute: '2-digit', second: '2-digit' 
+            });
+
+
+            if (!speakerName) {
+                showMessage("الرجاء اختيار اسم المتحدث من القائمة المنسدلة.", "warning");
+                return;
+            }
+            
+            // جمع التقييمات الثنائية (دائماً/أحياناً/نادراً)
+            const peerScores = {};
+            let isFormComplete = true;
+            const criteriaNames = [
+                'attention', 'eye_contact', 'voice_tone', 
+                'clear_content', 'strong_conclusion', 'handling_questions'
+            ];
+
+            criteriaNames.forEach(key => {
+                const checkedRadio = document.querySelector(`input[name="score_${key}"]:checked`);
+                if (checkedRadio) {
+                    peerScores[key] = checkedRadio.value; // القيمة هي "Always", "Sometimes", "Rarely"
+                } else {
+                    isFormComplete = false;
+                }
+            });
+
+            if (!isFormComplete) {
+                showMessage("الرجاء تقييم جميع البنود الستة.", "warning");
+                return;
+            }
+
+            const evaluationData = {
+                speakerName,
+                evaluationDate: new Date().toLocaleDateString('ar-EG'), // التاريخ المطلوب في الاستمارة
+                submissionTime,
+                peerScores,
+                likes,
+                advice,
+                // بيانات التعريف للمتابعة
+                evaluatorId: userId, // المستخدم الحالي هو المقيم (الزميل)
+                timestampISO: new Date().toISOString(),
+                appId: appId,
+            };
+
+            const saveButton = document.getElementById('saveButton');
+            saveButton.disabled = true;
+            saveButton.textContent = 'جاري الحفظ...';
+
+            try {
+                // حفظ المستند في المسار evaluate2
+                const docRef = await addDoc(collection(db, getPeerEvaluationSavePath()), evaluationData);
+                showMessage(`تم حفظ تقييم الزميل بنجاح في مسار evaluate2! رقم المستند: ${docRef.id}.`, "success");
+                
+                // إعادة تعيين حقول النموذج
+                document.getElementById('evaluationForm').reset();
+            } catch (e) {
+                console.error("Error adding document to Firestore: ", e);
+                showMessage(`فشل الحفظ. خطأ: ${e.message}. تأكد من نشر قواعد الأمان الصحيحة.`, "error");
+            } finally {
+                saveButton.disabled = false;
+                saveButton.textContent = 'حفظ تقييم الزميل';
+            }
+        };
+
+        // تهيئة Firebase عند تحميل النافذة
+        window.onload = setupFirebase;
+        
+    </script>
+    <style>
+        /* Custom styles for the responsive layout and Arabic font */
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap');
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .score-label {
+            transition: all 0.15s ease-in-out;
+            cursor: pointer;
+            border-radius: 0.5rem; /* rounded-lg */
+            border: 1px solid #d1d5db; /* border-gray-300 */
+        }
+        .score-input:checked + label {
+            background-color: #3b82f6; /* Blue 500 for peer evaluation */
+            color: white;
+            border-color: #2563eb; /* Blue 600 */
+            transform: scale(1.02);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        .score-input {
+            display: none;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen">
+
+    <div class="max-w-4xl mx-auto bg-white p-6 md:p-10 rounded-xl shadow-2xl border border-gray-100">
+        
+        <h1 class="text-3xl font-bold mb-6 text-center text-blue-700 border-b-2 pb-2 border-blue-100">
+            استمارة تقييم الزملاء (Peer Evaluation)
+        </h1>
+
+        <!-- Message Box -->
+        <div id="messageBox" class="p-3 rounded-lg shadow-md mt-4 text-white text-center opacity-0 transition-opacity duration-300"></div>
+
+        <form id="evaluationForm" onsubmit="event.preventDefault(); submitEvaluation();">
+            
+            <!-- 1. General Info Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 bg-gray-50 p-4 rounded-lg">
+                <div class="flex flex-col col-span-1">
+                    <label for="speakerName" class="mb-1 text-sm font-semibold text-gray-700">اسم المتحدث (المتدرب الذي يتم تقييمه):</label>
+                    <select id="speakerName" required disabled class="p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 bg-white">
+                        <option value="">جاري تحميل القائمة...</option>
+                    </select>
+                </div>
+                <div class="flex flex-col col-span-1">
+                    <!-- التاريخ سيتم حفظه تلقائيا، لكن نعرضه للمستخدم -->
+                    <label for="currentDate" class="mb-1 text-sm font-semibold text-gray-700">التاريخ (تاريخ التقييم):</label>
+                    <input type="text" id="currentDate" disabled 
+                           value="" 
+                           class="p-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600 cursor-default" />
+                    <script>
+                        // Display current date on load
+                        document.addEventListener('DOMContentLoaded', () => {
+                            document.getElementById('currentDate').value = new Date().toLocaleDateString('ar-EG');
+                        });
+                    </script>
+                </div>
+            </div>
+            
+            <!-- 2. Evaluation Criteria Table -->
+            <div class="overflow-x-auto shadow-lg rounded-lg border border-gray-200 mb-8">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-blue-600 text-white">
+                        <tr>
+                            <th class="px-4 py-3 text-right text-sm font-semibold uppercase tracking-wider w-1/2">البند</th>
+                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider w-1/6">دائماً</th>
+                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider w-1/6">أحياناً</th>
+                            <th class="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider w-1/6">نادراً</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200 text-sm">
+                        
+                        <!-- Helper function to generate a row -->
+                        <script>
+                            function generatePeerRow(id, criteria) {
+                                const choices = [
+                                    { value: 'Always', label: 'دائماً' },
+                                    { value: 'Sometimes', label: 'أحياناً' },
+                                    { value: 'Rarely', label: 'نادراً' }
+                                ];
+                                
+                                let rowHtml = `
+                                    <tr class="hover:bg-blue-50/50">
+                                        <td class="px-4 py-3 font-medium text-gray-900">${criteria}</td>
+                                        <td class="px-2 py-2 text-center" colspan="3">
+                                            <div class="flex justify-around space-x-1 rtl:space-x-reverse">
+                                `;
+                                
+                                choices.forEach(choice => {
+                                    rowHtml += `
+                                        <div class="flex-1 min-w-0">
+                                            <input type="radio" id="score_${id}_${choice.value}" name="score_${id}" value="${choice.value}" class="score-input" required>
+                                            <label for="score_${id}_${choice.value}" 
+                                                   class="score-label w-full block py-2 text-center text-sm text-gray-700 hover:bg-blue-50">
+                                                   <span class="sr-only">${choice.label}</span>
+                                                   &#x2713;
+                                            </label>
+                                        </div>
+                                    `;
+                                });
+
+                                rowHtml += `
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                                document.write(rowHtml);
+                            }
+                        </script>
+                        
+                        <!-- CRITERIA ROWS -->
+                        <script>
+                            generatePeerRow('attention', 'جذب انتباهي من البداية');
+                            generatePeerRow('eye_contact', 'حافظ على التواصل البصري');
+                            generatePeerRow('voice_tone', 'استخدم صوته بثقة وتنوّع');
+                            generatePeerRow('clear_content', 'قدّم محتوى واضح ومترابط');
+                            generatePeerRow('strong_conclusion', 'أنهى العرض بجملة قوية أو دعوة للفعل');
+                            generatePeerRow('handling_questions', 'تعامل مع الأسئلة بهدوء ووضوح');
+                        </script>
+
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 3. Open Feedback Fields -->
+            <div class="space-y-6">
+                
+                <!-- What I liked most -->
+                <div>
+                    <label for="likes" class="mb-2 block text-lg font-semibold text-gray-700">أكثر ما أعجبني في العرض:</label>
+                    <textarea id="likes" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm" placeholder="اكتب نقاط القوة التي لاحظتها..."></textarea>
+                </div>
+
+                <!-- Advice for improvement -->
+                <div>
+                    <label for="advice" class="mb-2 block text-lg font-semibold text-gray-700">نصيحة واحدة للتحسين:</label>
+                    <textarea id="advice" rows="3" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 transition duration-150 shadow-sm" placeholder="قدم اقتراحاً واحداً محدداً يمكن أن يحسن الأداء..."></textarea>
+                </div>
+
+            </div>
+
+            <!-- 4. Submit Button -->
+            <div class="mt-8 text-center">
+                <button type="submit" id="saveButton" disabled 
+                        class="px-8 py-3 bg-blue-600 text-white font-bold rounded-full shadow-lg hover:bg-blue-700 transition duration-200 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    جاري التحقق من الاتصال...
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+</body>
+</html>
