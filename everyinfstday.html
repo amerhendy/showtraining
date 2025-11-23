@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مخطط العروض التقديمية بواسطة Gemini</title>
+    <!-- تحميل Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- تهيئة الخطوط والنمط -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+            color: #1f2937;
+            direction: rtl;
+            text-align: right;
+        }
+        .container {
+            max-width: 1000px;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #10b981; /* زمردي 600 */
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #059669; /* زمردي 700 */
+            transform: translateY(-1px);
+        }
+        .loading-spinner {
+            border-top-color: #10b981;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="container mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-gray-800 mb-2">مخطط العروض التقديمية الذكي</h1>
+            <p class="text-gray-500">أدخل بيانات العرض، وسيقوم النظام بتوليد هيكله التفصيلي بالكامل.</p>
+        </header>
+
+        <!-- قسم الإدخال -->
+        <div id="input-section" class="card p-6 mb-8">
+            <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-700">1. إدخال بيانات العرض والجمهور</h2>
+            <form id="presentation-form" class="space-y-6">
+
+                <!-- الموضوع الأساسي ومعلومات عنه -->
+                <div>
+                    <label for="topic-details" class="block text-sm font-medium text-gray-700 mb-1">الموضوع الأساسي للعرض ومعلومات نصية مفصلة عنه</label>
+                    <textarea id="topic-details" rows="4" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 transition duration-150" placeholder="أدخل النقاط الرئيسية، السياق، والهدف العام للعرض..."></textarea>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6">
+                    <!-- منصب الجمهور -->
+                    <div>
+                        <label for="audience-position" class="block text-sm font-medium text-gray-700 mb-1">منصب/صفة الجمهور (مثال: مدراء، فنيون، طلاب)</label>
+                        <input type="text" id="audience-position" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 transition duration-150" placeholder="مدراء تنفيذيون، موظفو المبيعات، إلخ.">
+                    </div>
+
+                    <!-- مستوى المعرفة -->
+                    <div>
+                        <label for="knowledge-level" class="block text-sm font-medium text-gray-700 mb-1">مستوى معرفة الجمهور بالموضوع</label>
+                        <select id="knowledge-level" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 transition duration-150 appearance-none">
+                            <option value="" disabled selected>اختر مستوى المعرفة</option>
+                            <option value="مبتدئ">مبتدئ</option>
+                            <option value="متوسط">متوسط</option>
+                            <option value="خبرة">خبرة</option>
+                            <option value="كل ما سبق">كل ما سبق</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" id="generate-button" class="btn-primary w-full text-white font-semibold py-3 px-4 rounded-lg shadow-md flex items-center justify-center">
+                    <span id="button-text">توليد هيكل العرض</span>
+                    <div id="loading-indicator" class="loading-spinner h-5 w-5 border-4 rounded-full border-opacity-50 border-white mr-3 hidden"></div>
+                </button>
+            </form>
+            <div id="error-message" class="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg hidden"></div>
+        </div>
+
+        <!-- قسم المخرجات -->
+        <div id="output-section" class="card p-6 hidden">
+            <h2 class="text-2xl font-bold border-b pb-3 mb-6 text-gray-700">2. الهيكل التفصيلي للعرض التقديمي (بواسطة Gemini)</h2>
+            
+            <!-- زر توليد الأسئلة المحتملة بواسطة Gemini -->
+            <button id="qna-button" class="btn-primary text-white font-semibold py-2 px-4 rounded-lg shadow-md flex items-center justify-center mb-6 hidden">
+                <span id="qna-button-text">توليد أسئلة الجمهور المحتملة ✨</span>
+                <div id="qna-loading-indicator" class="loading-spinner h-4 w-4 border-2 rounded-full border-opacity-50 border-white mr-3 hidden"></div>
+            </button>
+            
+            <div id="presentation-output" class="prose max-w-none mb-8">
+                <!-- المحتوى المولّد سيتم إدراجه هنا -->
+            </div>
+
+            <!-- مخرجات أسئلة وأجوبة الجمهور -->
+            <div id="qna-output-section" class="mt-8 pt-4 border-t border-gray-200 hidden">
+                <h3 class="text-xl font-bold mb-3 text-gray-700">3. أسئلة الجمهور المتوقعة وإجاباتها المقترحة</h3>
+                <div id="qna-output" class="prose max-w-none">
+                    <!-- أسئلة الجمهور المولدة ستدرج هنا -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // دالة لتحويل Markdown إلى HTML أساسي
+        // هذه الدالة أساسية وليست شاملة، وهي كافية لعرض مخرجات Gemini
+        function markdownToHtml(markdown) {
+            let html = markdown
+                .replace(/^#\s*(.*)$/gm, '<h1>$1</h1>') // H1
+                .replace(/^##\s*(.*)$/gm, '<h2>$1</h2>') // H2
+                .replace(/^###\s*(.*)$/gm, '<h3>$1</h3>') // H3
+                .replace(/^\*\s*(.*)$/gm, '<li>$1</li>') // Unordered lists
+                .replace(/^- (.*)$/gm, '<li>$1</li>') // Unordered lists (hyphen style)
+                .replace(/(\r\n|\n|\r)/gm, '<br>') // Line breaks
+                .replace(/<br><br>/gm, '</p><p>') // Paragraphs
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
+
+            // Ensure lists are wrapped
+            html = html.replace(/<br><li>/g, '<li>').replace(/<\/li><br>/g, '</li>');
+            html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+            
+            // Clean up list artifacts
+            html = html.replace(/<\/ul><br><ul>/g, '</ul><ul>').replace(/<\/li><br>/g, '</li>').replace(/<br><li>/g, '<li>');
+            html = html.replace(/<br><ul>/g, '<ul>').replace(/<\/ul><br>/g, '</ul>');
+            html = html.replace(/<ul>(\s*<br>\s*)/g, '<ul>').replace(/(\s*<br>\s*)<\/ul>/g, '</ul>');
+
+
+            // Add classes for better styling in the output section
+            html = html.replace(/<h1>/g, '<h1 class="text-3xl font-bold my-4 pt-4 border-t border-gray-200">')
+                       .replace(/<h2>/g, '<h2 class="text-2xl font-semibold mt-6 mb-3 text-emerald-700">')
+                       .replace(/<h3>/g, '<h3 class="text-xl font-medium mt-4 mb-2 text-gray-600">')
+                       .replace(/<p>/g, '<p class="mb-3 leading-relaxed">')
+                       .replace(/<ul>/g, '<ul class="list-disc list-inside space-y-1 mb-4 pr-6">');
+
+            return html;
+        }
+
+
+        // متغيرات الثوابت
+        const MODEL_NAME = "gemini-2.5-flash-preview-09-2025";
+        
+        // *****************************************************************
+        // ملاحظة هامة: لتشغيل هذا الملف محلياً على جهازك، يجب أن تضع مفتاح 
+        // الـ API الخاص بك بين علامتي التنصيص بدلًا من "ضع مفتاحك هنا".
+        // *****************************************************************
+        const API_KEY = "AIzaSyAb8mabvWP_3K3Ht3Op6AbRFj1sKCOdMsw"; // ضع مفتاح Gemini API الخاص بك هنا عند التشغيل محلياً
+        
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+
+
+        // عناصر DOM
+        const form = document.getElementById('presentation-form');
+        const topicDetails = document.getElementById('topic-details');
+        const audiencePosition = document.getElementById('audience-position');
+        const knowledgeLevel = document.getElementById('knowledge-level');
+        const generateButton = document.getElementById('generate-button');
+        const buttonText = document.getElementById('button-text');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const outputSection = document.getElementById('output-section');
+        const presentationOutput = document.getElementById('presentation-output');
+        const errorMessage = document.getElementById('error-message');
+        
+        // عناصر Q&A الجديدة
+        const qnaButton = document.getElementById('qna-button');
+        const qnaButtonText = document.getElementById('qna-button-text');
+        const qnaLoadingIndicator = document.getElementById('qna-loading-indicator');
+        const qnaOutputSection = document.getElementById('qna-output-section');
+        const qnaOutput = document.getElementById('qna-output');
+
+
+        // إعداد رسالة النظام لتوجيه النموذج الأساسي
+        const systemPrompt = `
+            أنت خبير في تصميم البرامج التدريبية والعروض التنفيذية لديك خبرة في التعامل مع مختلف مستويات الجمهور. 
+            مهمتك هي إنشاء هيكل متكامل ومقنع لعرض تقديمي بناءً على مدخلات المستخدم. 
+            يجب أن تلتزم بالهيكل والحدود المطلوبة بدقة (مثل 300 كلمة للمقدمة، و 15 كلمة للرسالة الأساسية)، وتستخدم اللغة العربية الفصحى والمؤثرة.
+            قم بترتيب المخرجات في مستند Markdown واحد واضح باستخدام العناوين الفرعية (## و ###) بدقة.
+        `;
+        
+        // إعداد رسالة النظام لتوليد الأسئلة والأجوبة
+        const qnaSystemPrompt = `
+            أنت خبير في التوقعات وتحليل الجمهور. مهمتك هي توليد 5 إلى 7 أسئلة صعبة ومحتملة قد يطرحها الجمهور خلال جلسة الأسئلة والأجوبة، بناءً على الموضوع المقدم ومستوى معرفة الجمهور. لكل سؤال، قدم إجابة موجزة ومقنعة (نصها لا يزيد عن سطرين). استخدم تنسيق Markdown للعناوين والقوائم.
+        `;
+
+        // دالة توليد الرسالة للموديل الأساسي
+        function createModelQuery(topic, position, level) {
+            return `
+                أحتاج إلى إنشاء هيكل عرض تقديمي بناءً على المعلومات التالية:
+                1. الموضوع الأساسي ومعلومات عنه: ${topic}
+                2. منصب الجمهور: ${position}
+                3. مستوى معرفة الجمهور بالموضوع: ${level}
+
+                الرجاء توليد البيانات التالية بدقة:
+                
+                **## أ. الملخص والأهداف الرئيسية**
+                * **عنوان العرض (نص)**
+                * **الرسالة الأساسية (لا تزيد عن 15 كلمة)**
+                * **ما الذى نريد أن يتذكره الجمهور (نص)**
+                * **النتيجة التى نريد أن يحصل عليها الجمهور فى النهاية (نص)**
+                * **هدف العرض (نص)**
+                * **العرض الذى تريد تقديمه (نص من حوالي 300 كلمة)**
+
+                **## ب. الافتتاحيات الثلاثة المقترحة**
+                * **### 1. سؤال تحفيزي**
+                * **### 2. حقيقة صادمة**
+                * **### 3. قصة قصيرة**
+
+                **## ج. تنظيم المحتوى المقترح (هيكل المشكلة والحل)**
+                * **### 1. الوضع الحالى والمشكلة:** (نص) + (قصة تشرحه)
+                * **### 2. طريقة وأدوات الحل:** (نص) + (قصة تشرحه)
+                * **### 3. النتائج المتوقعة:** (نص) + (قصة تشرحه)
+
+                **## د. الدعوة للتفاعل والخلاصة**
+                * **أهم ثلاثة معلومات يسمعها الجمهور ليوافق على الدعوة للتفاعل.**
+                * **خاتمة قصيرة وجملة دعوة للتفاعل.**
+
+                **## هـ. أسلوب الإلقاء التنفيذي (Executive Summary)**
+                * **القاء افتتاحى باسلوب العرض التنفيذى (البدء بالخلاصة 60 ثانية):** دمج الرسالة والثلاثة نقاط في جملة واحدة. ابدأ بكلمة (نوصي بـ - النتيجة النهائية هي).
+            `;
+        }
+
+        // دالة استدعاء API مع خاصية التراجع الأسي (Exponential Backoff)
+        async function fetchWithRetry(payload, maxRetries = 5) {
+            // التحقق من وجود المفتاح قبل محاولة إرسال الطلب
+            if (!API_KEY) {
+                // رسالة خطأ واضحة للمستخدم
+                throw new Error("API Key is missing. Please obtain your Gemini API key and replace the placeholder in the script.");
+            }
+            
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        // محاولة أخرى في حالة خطأ 5xx أو 429
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    return response.json();
+                } catch (error) {
+                    console.error(`Attempt ${i + 1} failed:`, error);
+                    if (i === maxRetries - 1) throw error;
+
+                    // الانتظار بتراجع أسي
+                    const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                }
+            }
+        }
+        
+        // دالة توليد أسئلة وأجوبة الجمهور
+        async function handleQnAGeneration() {
+            qnaOutputSection.classList.add('hidden');
+            qnaOutput.innerHTML = '';
+            qnaButton.disabled = true;
+            qnaButtonText.textContent = 'جاري تحليل الأسئلة...';
+            qnaLoadingIndicator.classList.remove('hidden');
+
+            const topic = topicDetails.value.trim();
+            const position = audiencePosition.value.trim();
+            const level = knowledgeLevel.value.trim();
+
+            const qnaQuery = `
+                الموضوع الأساسي للعرض: ${topic}
+                منصب الجمهور: ${position}
+                مستوى معرفة الجمهور: ${level}
+                
+                الرجاء توليد 5 إلى 7 أسئلة صعبة متوقعة وإجاباتها الموجزة. يجب أن تكون الأسئلة ذات صلة بمنصب الجمهور ومستوى معرفته.
+            `;
+
+            const payload = {
+                contents: [{ parts: [{ text: qnaQuery }] }],
+                systemInstruction: { parts: [{ text: qnaSystemPrompt }] },
+                tools: [{ "google_search": {} }],
+            };
+            
+            try {
+                const result = await fetchWithRetry(payload);
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    const generatedText = candidate.content.parts[0].text;
+                    
+                    qnaOutput.innerHTML = markdownToHtml(generatedText);
+                    qnaOutputSection.classList.remove('hidden');
+
+                } else {
+                    qnaOutput.innerHTML = '<p class="text-red-500">فشل في توليد الأسئلة المحتملة. قد يكون الرد فارغاً أو غير مكتمل.</p>';
+                    qnaOutputSection.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                console.error("Q&A API Call Error:", error);
+                qnaOutput.innerHTML = `<p class="text-red-500">حدث خطأ أثناء محاولة توليد الأسئلة. ${error.message.includes('API Key is missing') ? 'يرجى التأكد من إدخال مفتاح الـ API الخاص بك في الكود.' : 'حاول مجدداً.'}</p>`;
+                qnaOutputSection.classList.remove('hidden');
+            } finally {
+                qnaButton.disabled = false;
+                qnaButtonText.textContent = 'توليد أسئلة الجمهور المحتملة ✨';
+                qnaLoadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // دالة إرسال الطلب الأساسي ومعالجة الرد
+        async function handleGeneration() {
+            errorMessage.classList.add('hidden');
+            generateButton.disabled = true;
+            buttonText.textContent = 'جاري التوليد...';
+            loadingIndicator.classList.remove('hidden');
+            outputSection.classList.add('hidden');
+            presentationOutput.innerHTML = '';
+            qnaButton.classList.add('hidden'); // إخفاء زر QnA عند بدء توليد الهيكل
+            qnaOutputSection.classList.add('hidden');
+            qnaOutput.innerHTML = '';
+
+
+            const topic = topicDetails.value.trim();
+            const position = audiencePosition.value.trim();
+            const level = knowledgeLevel.value.trim();
+
+            if (!topic || !position || !level) {
+                errorMessage.textContent = 'يرجى ملء جميع الحقول المطلوبة.';
+                errorMessage.classList.remove('hidden');
+                generateButton.disabled = false;
+                buttonText.textContent = 'توليد هيكل العرض';
+                loadingIndicator.classList.add('hidden');
+                return;
+            }
+
+            const userQuery = createModelQuery(topic, position, level);
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                tools: [{ "google_search": {} }],
+            };
+
+            try {
+                const result = await fetchWithRetry(payload);
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    const generatedText = candidate.content.parts[0].text;
+                    
+                    // تحويل الماركداون إلى HTML وعرضه
+                    presentationOutput.innerHTML = markdownToHtml(generatedText);
+                    outputSection.classList.remove('hidden');
+                    qnaButton.classList.remove('hidden'); // إظهار زر QnA بعد النجاح
+
+                } else {
+                    errorMessage.textContent = 'فشل في توليد المحتوى. قد يكون الرد فارغاً أو غير مكتمل.';
+                    errorMessage.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                console.error("API Call Error:", error);
+                // عرض رسالة خطأ واضحة
+                errorMessage.textContent = `حدث خطأ غير متوقع أثناء الاتصال بالخادم: ${error.message.includes('API Key is missing') ? 'يرجى التأكد من إدخال مفتاح الـ API الخاص بك في الكود.' : 'حاول مجدداً.'}`;
+                errorMessage.classList.remove('hidden');
+            } finally {
+                generateButton.disabled = false;
+                buttonText.textContent = 'توليد هيكل العرض';
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        // الاستماع لحدث إرسال النموذج الأساسي
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            handleGeneration();
+        });
+        
+        // الاستماع لحدث توليد الأسئلة والأجوبة
+        qnaButton.addEventListener('click', handleQnAGeneration);
+    </script>
+</body>
+</html>
