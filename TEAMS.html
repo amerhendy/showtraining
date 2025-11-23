@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>توزيع المتدربين وإدارة الفرق</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+	<script src="js/xml.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: 'Cairo', sans-serif;
+            background-color: #f7f9fb;
+            overflow-y: auto;
+        }
+
+        .team-card {
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border: 2px solid; /* لون الفريق - كحد خارجي للكرت */
+            min-height: 150px;
+        }
+
+        .member-item {
+            cursor: grab;
+            transition: transform 0.1s ease;
+            user-select: none;
+            color: #ffffff; /* لون النص يبقى أبيض */
+            border-radius: 9999px; /* شكل دائري أكثر وضوحاً */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .member-item:active {
+            cursor: grabbing;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            z-index: 10;
+        }
+
+        .drag-over {
+            border: 2px dashed #3b82f6;
+            background-color: #eff6ff;
+        }
+		/* كلاس الزر العائم */
+        .fab-container {
+            position: fixed;
+            bottom: 0rem; /* 24px */
+            left: 1.5rem; /* 24px - ليتناسب مع RTL */
+            z-index: 50; /* تأكد أنه يظهر فوق العناصر الأخرى */
+        }
+    </style>
+</head>
+<body class=" md:p-4">
+
+    <div class="max-w-12xl w-full mx-auto">
+        <div class="bg-white shadow-2xl rounded-xl p-6 md:p-4 border-t-8 border-indigo-600">
+            <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2 text-center" style="background-image: url(&quot;gigapixel-background-removed-1384.png&quot;);background-size: contain;background-repeat: no-repeat;background-position: right;">
+                🛠️ أداة توزيع المتدربين على الفرق
+            </h1>
+            
+<div class="fab-container">
+        <button id="openChangeFileModalBtn" 
+                class="px-6 py-3 bg-indigo-600 text-white font-bold rounded-full shadow-2xl hover:bg-indigo-700 transition duration-300 transform hover:scale-105 flex items-center space-x-2 space-x-reverse" 
+                onclick="toggleTeamsModal(true)">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <span>تغيير ملف الفرق</span>
+        </button>
+    </div>
+	<!-- ============================================== -->
+    <!-- النافذة المنبثقة (Modal) لتغيير ملف الفرق -->
+    <!-- ============================================== -->
+    <div id="teamFileModal" class="modal fixed inset-0 flex items-center justify-center p-4 hidden">
+        <div class="modal-content bg-white p-6 rounded-xl shadow-2xl w-full max-w-md transition-all duration-300">
+            <h3 class="text-2xl font-extrabold text-gray-800 mb-4 border-b pb-2">تحميل وتحديث بيانات الفرق</h3>
+            <p class="text-gray-600 mb-4">الرجاء اختيار ملف XML يضم هيكل الفرق والأعضاء. سيتم حفظ البيانات في قاعدة بيانات IndexedDB.</p>
+            
+            <label for="teamFileUploadInput" 
+                   class="file-input-label flex items-center justify-center space-x-2 space-x-reverse bg-gray-100 border-2 border-dashed border-gray-400 p-4 rounded-lg hover:bg-gray-200">
+                <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                <span class="text-lg font-semibold text-gray-700">اختر ملف الفرق (XML)</span>
+            </label>
+            <input type="file" id="teamFileUploadInput" accept=".xml" class="hidden" onchange="handleTeamFileUpload(event)">
+            
+            <p id="modalFileStatus" class="mt-4 p-3 bg-yellow-100 text-yellow-800 rounded-lg text-sm text-right">لم يتم اختيار أي ملف.</p>
+            
+            <div class="mt-6 flex justify-end space-x-3 space-x-reverse">
+                <button id="saveAndCloseBtn" disabled class="px-5 py-2 bg-green-500 text-white font-bold rounded-lg shadow hover:bg-green-600 disabled:opacity-50" onclick="showAll()">
+                    عرض الفرق
+                </button>
+                <button type="button" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300" onclick="toggleTeamsModal(false)">
+                    إلغاء
+                </button>
+            </div>
+        </div>
+    </div>
+            <!-- 1. Input Section -->
+            <div class="mb-8 p-1 bg-indigo-50 rounded-lg border-2 border-indigo-200">
+                <h2 class="text-2xl font-bold text-indigo-700 mb-4">بيانات الإدخال</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-2">
+                        <label for="traineeNames" class="block text-sm font-medium text-gray-700 mb-1">أسماء المتدربين (اسم في كل سطر)</label>
+                        <textarea id="traineeNames" rows="6" class="w-full p-3 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm" placeholder="مثال:&#13;&#10;علي محمد&#13;&#10;فاطمة أحمد&#13;&#10;عمر خالد&#13;&#10;سلمى يوسف">
+علي محمد
+فاطمة أحمد
+عمر خالد
+سلمى يوسف
+نور أيمن
+باسم إيهاب
+مريم سامي
+يوسف حاتم
+</textarea>
+                    </div>
+                    <div>
+                        <label for="numTeams" class="block text-sm font-medium text-gray-700 mb-1">عدد الفرق المطلوبة</label>
+                        <input type="number" id="numTeams" value="2" min="1" class="w-full p-3 border border-indigo-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 text-lg mb-4" />
+                        
+                        <button onclick="shuffleAndRenderTeams()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition duration-200 text-lg shadow-md">
+                            توزيع عشوائي
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Team Display and Drag & Drop Area -->
+            <div id="teamsDisplayArea" class="mb-1">
+                <h2 class="text-2xl font-bold text-gray-800 mb-1 border-b pb-2">تشكيلة الفرق (يمكن التعديل بالسحب والإفلات)</h2>
+                <div id="teamsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- يتم إدخال كروت الفرق هنا بواسطة JavaScript -->
+                    <p class="text-gray-500 text-center col-span-full" id="initialMessage">أدخل الأسماء واضغط "توزيع عشوائي" للبدء.</p>
+                </div>
+            </div>
+
+            <!-- 3. Save to XML Section -->
+            <div class="p-6 bg-green-50 rounded-lg border-2 border-green-200">
+                <h2 class="text-2xl font-bold text-green-700 mb-4 flex justify-between items-center">
+                    حفظ التشكيلة النهائية كملف XML
+                    <button onclick="generateXMLOutput()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200 text-sm shadow-md">
+                        توليد XML الآن
+                    </button>
+                </h2>
+                <div id="xmlOutputContainer" class="hidden">
+                    <textarea id="xmlOutput" rows="10" readonly class="w-full p-3 mt-2 border border-green-300 rounded-lg font-mono text-sm resize-none"></textarea>
+                    <p class="text-xs text-green-700 mt-2">انسخ المحتوى أعلاه واحفظه في ملف باسم `team_data.xml`.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // المتغيرات العالمية للحالة
+        let teamsData = [];
+        
+        // قائمة ألوان الفرق (لحدود الكرت فقط)
+        const TEAM_COLORS = [
+            '#4169E1', '#2ECC71', '#FFC107', '#DC143C', 
+            '#3F51B5', '#00897B', '#E91E63', '#607D8B'  ,'#FF7043','#673AB7'
+        ];
+        
+        // قائمة الألوان الفردية للأعضاء (لتلوين بطاقة العضو)
+        const INDIVIDUAL_COLORS = [
+            '#4299e1', '#f6ad55', '#38b2ac', '#d53f8c', '#667eea', 
+            '#ed8936', '#319795', '#a0aec0', '#9f7aea', '#48bb78',
+            '#ecc94b', '#e53e3e', '#718096', '#2d3748', '#805ad5',
+            '#007bff', '#ffc107', '#28a745', '#dc3545', '#6c757d'
+        ];
+
+        const TEAM_NAMES = ['الفرسان', 'الرواد', 'النجوم', 'الأبطال', 'العظماء', 'الفائزون', 'العباقرة', 'القادة','المحترفين','النمور','الصقور','العاصفة','البرق','الدرع','الرمح'];
+
+        // --- وظائف المساعدة العامة ---
+
+        /**
+         * دالة لخلط مصفوفة بشكل عشوائي (Fisher-Yates Shuffle).
+         * @param {Array} array - المصفوفة المراد خلطها.
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+        
+        /**
+         * دالة للحصول على لون عشوائي فريد لكل متدرب.
+         * تستخدم لتوزيع الألوان العشوائية على المتدربين الجدد.
+         * @param {number} index - مؤشر المتدرب.
+         */
+        function getIndividualColor(index) {
+            return INDIVIDUAL_COLORS[index % INDIVIDUAL_COLORS.length];
+        }
+
+        // --- وظائف إدارة الفرق والتوزيع ---
+
+        /**
+         * تقرأ الأسماء وتوزعها عشوائياً على عدد محدد من الفرق.
+         */
+        function shuffleAndRenderTeams() {
+            const namesText = document.getElementById('traineeNames').value;
+            const numTeams = parseInt(document.getElementById('numTeams').value) || 1;
+            
+            // تنقية الأسماء وإعطاء كل متدرب لون فردي ثابت
+            let allTrainees = namesText.split('\n')
+                .map(name => name.trim())
+                .filter(name => name.length > 0)
+                .map((name, index) => ({ 
+                    id: `m${index + 1}`, 
+                    name, 
+                    // تخصيص لون ثابت لكل عضو
+                    individualColor: getIndividualColor(index) 
+                }));
+
+            if (allTrainees.length === 0) {
+                console.error('الرجاء إدخال أسماء المتدربين أولاً.');
+                return;
+            }
+            if (numTeams < 1) {
+                console.error('يجب أن يكون عدد الفرق فريقاً واحداً على الأقل.');
+                return;
+            }
+
+            // خلط المتدربين
+            shuffleArray(allTrainees);
+			let colorsShuffled = [...TEAM_COLORS];
+			shuffleArray(colorsShuffled);
+
+            // إنشاء هياكل الفرق
+            teamsData = [];
+            for (let i = 0; i < numTeams; i++) {
+                teamsData.push({
+                    id: `t${i + 1}`,
+                    name: TEAM_NAMES[i % TEAM_NAMES.length] + (i >= TEAM_NAMES.length ? ` ${i + 1}` : ''),
+                    //color: TEAM_COLORS[i % TEAM_COLORS.length], // هذا هو لون حدود كرت الفريق
+					color: colorsShuffled[i % colorsShuffled.length],
+                    members: []
+                });
+            }
+
+            // توزيع المتدربين بالتناوب
+            allTrainees.forEach((trainee, index) => {
+                const teamIndex = index % numTeams;
+                teamsData[teamIndex].members.push(trainee);
+            });
+
+            // تحديث واجهة المستخدم
+            renderTeams();
+        }
+
+        /**
+         * ترسم كروت الفرق والأعضاء على الشاشة.
+         */
+        function renderTeams() {
+            const container = document.getElementById('teamsContainer');
+            const initialMessage = document.getElementById('initialMessage');
+            
+            container.innerHTML = '';
+            
+            // إصلاح الخطأ: يجب التحقق من وجود العنصر قبل محاولة الوصول إلى خصائصه
+            if (initialMessage) {
+                initialMessage.classList.add('hidden');
+            }
+
+            teamsData.forEach(team => {
+                const teamCard = document.createElement('div');
+                teamCard.className = 'team-card';
+                teamCard.id = team.id;
+                teamCard.style.borderColor = team.color; // استخدام لون الفريق للحدود
+                teamCard.setAttribute('data-color', team.color);
+
+                // إضافة معالجات السحب والإفلات لمناطق الإفلات (Teams)
+                teamCard.ondragover = allowDrop;
+                teamCard.ondrop = dropMember;
+
+                // عنوان الفريق مع إمكانية تعديل الاسم واللون
+                const header = document.createElement('div');
+                header.className = 'flex justify-between items-center mb-4 pb-2 border-b';
+                
+                header.innerHTML = `
+                    <input type="text" value="${team.name}" class="font-extrabold text-xl text-gray-800 bg-transparent focus:outline-none focus:ring-1 focus:ring-indigo-300 rounded-md p-1" onchange="updateTeamName('${team.id}', this.value)">
+                    <input type="color" value="${team.color}" class="w-8 h-8 border-none rounded-full cursor-pointer" onchange="updateTeamColor('${team.id}', this.value)">
+                `;
+
+                teamCard.appendChild(header);
+
+                // منطقة الأعضاء (Members)
+                const membersDiv = document.createElement('div');
+                membersDiv.className = 'flex flex-wrap gap-2';
+                
+                team.members.forEach(member => {
+                    // نمرر اللون الفردي للعضو
+                    const memberElement = createMemberElement(member, member.individualColor);
+                    membersDiv.appendChild(memberElement);
+                });
+
+                teamCard.appendChild(membersDiv);
+                container.appendChild(teamCard);
+            });
+        }
+        
+        /**
+         * تنشئ عنصر العضو القابل للسحب.
+         * @param {Object} member - بيانات العضو.
+         * @param {string} individualColor - لون العضو الفردي.
+         * @returns {HTMLElement}
+         */
+        function createMemberElement(member, individualColor) {
+            const memberElement = document.createElement('span');
+            memberElement.className = 'member-item px-3 py-1 text-sm font-semibold text-gray-700 hover:opacity-90 transition duration-150';
+            memberElement.textContent = member.name;
+            memberElement.id = member.id;
+            memberElement.draggable = true;
+            
+            // استخدام اللون الفردي للعضو لتلوين الخلفية
+            memberElement.style.backgroundColor = individualColor; 
+            memberElement.style.color = '#ffffff'; // لون النص الأبيض
+
+            // تخزين بيانات العضو كخصائص بيانات HTML
+            memberElement.setAttribute('data-member-name', member.name);
+            memberElement.setAttribute('data-individual-color', individualColor);
+
+            // إضافة معالجات السحب
+            memberElement.ondragstart = dragMember;
+            return memberElement;
+        }
+
+
+        // --- وظائف التعديل اليدوي (السحب والإفلات) ---
+
+        /**
+         * عند بدء سحب العضو.
+         */
+        function dragMember(ev) {
+            // إضافة البيانات القابلة للنقل (ID للعضو)
+            ev.dataTransfer.setData("memberId", ev.target.id);
+            // إضافة البيانات القابلة للنقل (ID للفريق المصدر)
+            ev.dataTransfer.setData("sourceTeamId", ev.target.closest('.team-card').id);
+        }
+
+        /**
+         * السماح بالإفلات في مناطق الفرق.
+         */
+        function allowDrop(ev) {
+            ev.preventDefault();
+            // إضافة تأثير مرئي لمناطق الإفلات
+            const teamCard = ev.target.closest('.team-card');
+            if (teamCard) {
+                teamCard.classList.add('drag-over');
+            }
+        }
+
+        /**
+         * إزالة تأثير السحب عند مغادرة منطقة الإفلات.
+         */
+        document.addEventListener('dragenter', (ev) => {
+            if (ev.target.closest('.team-card')) {
+                ev.target.closest('.team-card').classList.add('drag-over');
+            }
+        });
+
+        document.addEventListener('dragleave', (ev) => {
+            // إزالة الكلاس فقط إذا غادر العنصر الفعلي منطقة الإفلات
+            const related = ev.relatedTarget;
+            const targetCard = ev.target.closest('.team-card');
+            
+            if (targetCard && (!related || !related.closest('.team-card') || related.closest('.team-card').id !== targetCard.id)) {
+                targetCard.classList.remove('drag-over');
+            }
+        });
+
+        document.addEventListener('dragend', (ev) => {
+             document.querySelectorAll('.team-card').forEach(card => card.classList.remove('drag-over'));
+        });
+
+
+        /**
+         * عند إفلات العضو في فريق جديد.
+         */
+        function dropMember(ev) {
+            ev.preventDefault();
+            document.querySelectorAll('.team-card').forEach(card => card.classList.remove('drag-over'));
+
+            const memberId = ev.dataTransfer.getData("memberId");
+            const sourceTeamId = ev.dataTransfer.getData("sourceTeamId");
+            const destinationTeamCard = ev.target.closest('.team-card');
+            
+            // تحقق من وجود البطاقة الوجهة
+            if (!destinationTeamCard) return; 
+            
+            const destinationTeamId = destinationTeamCard.id;
+
+            if (sourceTeamId === destinationTeamId) return; // نفس الفريق، لا تفعل شيئاً
+
+            // 1. إزالة العضو من الفريق المصدر في بيانات الحالة (teamsData)
+            let memberToMove = null;
+            const sourceTeam = teamsData.find(t => t.id === sourceTeamId);
+            
+            if (sourceTeam) {
+                const memberIndex = sourceTeam.members.findIndex(m => m.id === memberId);
+                if (memberIndex !== -1) {
+                    memberToMove = sourceTeam.members.splice(memberIndex, 1)[0];
+                }
+            }
+
+            // 2. إضافة العضو إلى الفريق الوجهة في بيانات الحالة (teamsData)
+            if (memberToMove) {
+                const destinationTeam = teamsData.find(t => t.id === destinationTeamId);
+                if (destinationTeam) {
+                    destinationTeam.members.push(memberToMove);
+                }
+            }
+
+            // 3. إعادة رسم الواجهة لتعكس التغيير والألوان الجديدة
+            renderTeams();
+        }
+
+        /**
+         * تحديث اسم الفريق في بيانات الحالة.
+         */
+        function updateTeamName(teamId, newName) {
+            const team = teamsData.find(t => t.id === teamId);
+            if (team) {
+                team.name = newName;
+                console.log(`Team ${teamId} name updated to ${newName}`);
+            }
+        }
+
+        /**
+         * تحديث لون الفريق في بيانات الحالة وإعادة الرسم.
+         */
+        function updateTeamColor(teamId, newColor) {
+            const team = teamsData.find(t => t.id === teamId);
+            if (team) {
+                team.color = newColor;
+                // يجب إعادة الرسم لضمان تحديث لون الحدود
+                renderTeams(); 
+                console.log(`Team ${teamId} color updated to ${newColor}`);
+            }
+        }
+
+
+		// تهيئة عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', () => {
+			// 1. جلب البيانات من LocalStorage
+			const savedData = localStorage.getItem('teamDataXML');
+			let result=JSON.parse(savedData)
+			result=result.data
+			result = parseAndValidateXml(result);
+			TEMP_TEAMS_DATA=result.data;
+			showAll()
+		});
+
+
+    </script>
+</body>
+</html>
