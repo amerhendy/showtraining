@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>🌴 صندوق الإجازات - اعرف حقك</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#132339;
+    --bg-panel:#1c3050;
+    --bg-panel-2:#22385e;
+    --annual:#2ECC71;
+    --annual-dark:#1E8449;
+    --emergency:#F5A623;
+    --emergency-dark:#B9720A;
+    --sick:#EF476F;
+    --sick-dark:#B22C4C;
+    --special:#7C6AE8;
+    --special-dark:#4B3F9E;
+    --hazard:#FFCC00;
+    --ink:#0E1A2B;
+    --paper:#FFFDF6;
+    --white:#ffffff;
+    --shadow-deep: 0 14px 0 rgba(0,0,0,.28);
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100dvh;
+    background:
+      radial-gradient(circle at 15% 0%, #1a2f4d 0%, transparent 55%),
+      radial-gradient(circle at 90% 10%, #17283f 0%, transparent 45%),
+      var(--bg-deep);
+    font-family:'Tajawal', sans-serif;
+    color:var(--white);
+    overflow-x:hidden;
+    display:flex;
+    flex-direction:column;
+    user-select:none;
+  }
+
+  /* ===== HEADER SIGNBOARD ===== */
+  header{
+    position:relative;
+    margin:14px 14px 6px;
+    background:var(--bg-panel);
+    border-radius:20px;
+    padding:14px 18px 12px;
+    box-shadow:var(--shadow-deep), 0 0 0 2px #0a1524 inset;
+  }
+  .hazard-strip{
+    height:8px;
+    border-radius:6px;
+    background:repeating-linear-gradient(135deg, var(--hazard) 0 16px, var(--ink) 16px 32px);
+    margin-bottom:10px;
+  }
+  header .bolt{
+    position:absolute; width:10px; height:10px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #eee, #777 70%, #333);
+    box-shadow:0 1px 2px rgba(0,0,0,.6);
+  }
+  header .bolt.tl{top:10px; right:10px;}
+  header .bolt.tr{top:10px; left:10px;}
+  header .bolt.bl{bottom:10px; right:10px;}
+  header .bolt.br{bottom:10px; left:10px;}
+
+  .title-row{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+  }
+  .title-row h1{
+    margin:0;
+    font-size:clamp(1.3rem, 5vw, 1.9rem);
+    font-weight:900;
+    text-shadow:0 3px 0 rgba(0,0,0,.35);
+    letter-spacing:0.5px;
+  }
+
+  .progress-wrap{
+    display:flex; align-items:center; gap:10px; margin-top:12px;
+  }
+  .progress-track{
+    flex:1; height:14px; border-radius:8px;
+    background:#0d1c30;
+    box-shadow:inset 0 2px 4px rgba(0,0,0,.5);
+    overflow:hidden;
+  }
+  .progress-track .fill{
+    height:100%; width:0%;
+    background:linear-gradient(90deg, var(--hazard), #ffe066);
+    border-radius:8px;
+    transition:width .5s cubic-bezier(.4,0,.2,1);
+  }
+  .progress-count{
+    font-weight:800; font-size:.85rem; color:var(--hazard);
+    white-space:nowrap;
+    min-width:52px; text-align:center;
+  }
+
+  /* ===== MAIN STAGE ===== */
+  main{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:10px 14px 4px;
+    position:relative;
+  }
+
+  .card{
+    width:100%;
+    max-width:420px;
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:26px;
+    padding:22px 20px 24px;
+    text-align:center;
+    box-shadow:0 16px 0 rgba(0,0,0,.32), 0 20px 40px rgba(0,0,0,.4);
+    position:relative;
+    touch-action:none;
+    transition:transform .18s ease;
+  }
+  .card.dragging{opacity:.35;}
+  .card.shake{animation:shake .5s;}
+  @keyframes shake{
+    10%,90%{transform:translateX(-3px) rotate(-1deg);}
+    20%,80%{transform:translateX(6px) rotate(1deg);}
+    30%,50%,70%{transform:translateX(-10px) rotate(-2deg);}
+    40%,60%{transform:translateX(10px) rotate(2deg);}
+  }
+
+  .card .icon{
+    font-size:clamp(4.5rem, 22vw, 6.5rem);
+    line-height:1;
+    display:block;
+    margin-bottom:6px;
+    filter:drop-shadow(0 6px 6px rgba(0,0,0,.2));
+  }
+
+  .speak-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:56px; height:56px; border-radius:50%;
+    background:var(--special);
+    color:var(--white);
+    border:none;
+    font-size:1.6rem;
+    box-shadow:0 6px 0 var(--special-dark);
+    cursor:pointer;
+    margin:6px 0 14px;
+    position:relative;
+  }
+  .speak-btn:active{transform:translateY(4px); box-shadow:0 2px 0 var(--special-dark);}
+  .speak-btn.speaking{animation:pulseRing 1s infinite;}
+  @keyframes pulseRing{
+    0%{box-shadow:0 6px 0 var(--special-dark), 0 0 0 0 rgba(124,106,232,.6);}
+    100%{box-shadow:0 6px 0 var(--special-dark), 0 0 0 16px rgba(124,106,232,0);}
+  }
+
+  .card p.situation{
+    font-size:clamp(1.05rem, 4.4vw, 1.3rem);
+    font-weight:700;
+    line-height:1.55;
+    margin:0;
+  }
+
+  .hint{
+    text-align:center;
+    color:#a9bcd6;
+    font-size:.9rem;
+    margin:10px 0 0;
+    font-weight:500;
+  }
+
+  /* ===== DRAWERS ===== */
+  .drawers{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:10px;
+    padding:10px 14px calc(14px + env(safe-area-inset-bottom));
+  }
+  @media (max-width:560px){
+    .drawers{grid-template-columns:repeat(2, 1fr);}
+  }
+
+  .drawer{
+    border:none;
+    border-radius:18px;
+    padding:14px 8px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    cursor:pointer;
+    color:var(--white);
+    font-family:inherit;
+    position:relative;
+    transition:transform .12s ease;
+  }
+  .drawer .handle{
+    width:34px; height:6px; border-radius:6px;
+    background:rgba(255,255,255,.55);
+    margin-bottom:4px;
+  }
+  .drawer .icon{font-size:2.1rem; line-height:1;}
+  .drawer .label{font-weight:800; font-size:.95rem;}
+  .drawer:active{transform:translateY(4px);}
+  .drawer.correct-flash{animation:correctPop .5s;}
+  .drawer.wrong-flash{animation:wrongShake .4s;}
+  @keyframes correctPop{
+    0%{transform:scale(1);}
+    40%{transform:scale(1.12);}
+    100%{transform:scale(1);}
+  }
+  @keyframes wrongShake{
+    0%,100%{transform:translateX(0);}
+    25%{transform:translateX(-6px);}
+    75%{transform:translateX(6px);}
+  }
+
+  .d-annual{background:linear-gradient(180deg, var(--annual), var(--annual-dark)); box-shadow:0 6px 0 var(--annual-dark);}
+  .d-emergency{background:linear-gradient(180deg, var(--emergency), var(--emergency-dark)); box-shadow:0 6px 0 var(--emergency-dark);}
+  .d-sick{background:linear-gradient(180deg, var(--sick), var(--sick-dark)); box-shadow:0 6px 0 var(--sick-dark);}
+  .d-special{background:linear-gradient(180deg, var(--special), var(--special-dark)); box-shadow:0 6px 0 var(--special-dark);}
+
+  .drop-target-active{outline:4px dashed var(--hazard); outline-offset:3px;}
+
+  /* ===== GHOST (drag clone) ===== */
+  .ghost{
+    position:fixed; top:0; left:0; pointer-events:none; z-index:999;
+    font-size:4.5rem; opacity:.9; transform:translate(-50%,-50%);
+  }
+
+  /* ===== MODAL (reinforcement) ===== */
+  .overlay{
+    position:fixed; inset:0; background:rgba(9,16,28,.86);
+    display:flex; align-items:center; justify-content:center;
+    padding:20px; z-index:200;
+    opacity:0; pointer-events:none;
+    transition:opacity .25s ease;
+  }
+  .overlay.show{opacity:1; pointer-events:auto;}
+  .modal{
+    background:var(--paper); color:var(--ink);
+    border-radius:26px; max-width:440px; width:100%;
+    padding:24px 22px 22px; text-align:center;
+    box-shadow:0 20px 0 rgba(0,0,0,.3);
+    transform:translateY(30px) scale(.95);
+    transition:transform .3s cubic-bezier(.2,1.4,.4,1);
+    max-height:88vh; overflow-y:auto;
+  }
+  .overlay.show .modal{transform:translateY(0) scale(1);}
+  .modal h2{margin:0 0 14px; font-size:1.4rem; font-weight:900;}
+  .stat-grid{
+    display:grid; grid-template-columns:repeat(2,1fr); gap:10px;
+    margin-bottom:14px;
+  }
+  .stat-grid.single{grid-template-columns:1fr;}
+  .stat{
+    background:#f1efe4; border-radius:16px; padding:12px 6px;
+    border:3px solid transparent;
+    transition:transform .2s ease;
+  }
+  .stat.highlight{
+    background:#fff4d6; border-color:var(--hazard);
+    transform:scale(1.05);
+  }
+  .stat .num{font-size:clamp(1.5rem,7vw,2.2rem); font-weight:900; display:block; line-height:1.1;}
+  .stat .lab{font-size:.78rem; font-weight:700; color:#555; margin-top:4px; display:block;}
+  .note-box{
+    background:#fff4d6; border-radius:14px; padding:10px 12px;
+    font-weight:800; font-size:.95rem; color:#7a5300;
+    margin-bottom:16px;
+  }
+  .next-btn, .replay-btn{
+    border:none; border-radius:16px; padding:14px 26px;
+    font-family:inherit; font-weight:900; font-size:1.1rem;
+    background:linear-gradient(180deg, var(--annual), var(--annual-dark));
+    color:var(--white); box-shadow:0 6px 0 var(--annual-dark);
+    cursor:pointer; width:100%;
+  }
+  .next-btn:active, .replay-btn:active{transform:translateY(4px); box-shadow:0 2px 0 var(--annual-dark);}
+
+  /* ===== FINAL SCREEN ===== */
+  .final .modal{max-width:400px;}
+  .final .trophy{font-size:5rem; display:block; margin-bottom:6px;}
+  .final h2{font-size:1.6rem;}
+  .final p{font-weight:700; line-height:1.6; color:#333; margin:0 0 18px;}
+
+  /* ===== CONFETTI ===== */
+  .confetti-piece{
+    position:fixed; top:-5%; width:10px; height:14px; z-index:300;
+    animation-name:fall; animation-timing-function:ease-in; animation-fill-mode:forwards;
+    border-radius:2px;
+  }
+  @keyframes fall{
+    0%{transform:translateY(0) rotate(0deg); opacity:1;}
+    100%{transform:translateY(110vh) rotate(540deg); opacity:.7;}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bolt tl"></div><div class="bolt tr"></div><div class="bolt bl"></div><div class="bolt br"></div>
+  <div class="hazard-strip"></div>
+  <div class="title-row">
+    <h1>🌴 صندوق الإجازات</h1>
+  </div>
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="fill" id="progressFill"></div></div>
+    <div class="progress-count" id="progressCount">1 / 14</div>
+  </div>
+</header>
+
+<main>
+  <div class="card" id="challengeCard">
+    <span class="icon" id="cardIcon">🏖️</span>
+    <button class="speak-btn" id="speakBtn" aria-label="استمع للموقف">🔊</button>
+    <p class="situation" id="cardText">جارِ التحميل...</p>
+  </div>
+</main>
+
+<p class="hint">👆 اضغط أو اسحب البطاقة إلى الصندوق المناسب</p>
+
+<div class="drawers" id="drawers"></div>
+
+<!-- Reinforcement Modal -->
+<div class="overlay" id="reinforceOverlay">
+  <div class="modal" id="reinforceModal">
+    <h2 id="reinforceTitle"></h2>
+    <div class="stat-grid" id="reinforceStats"></div>
+    <div class="note-box" id="reinforceNote"></div>
+    <button class="next-btn" id="nextBtn">التالي ⬅️</button>
+  </div>
+</div>
+
+<!-- Final Screen -->
+<div class="overlay final" id="finalOverlay">
+  <div class="modal">
+    <span class="trophy">🏆</span>
+    <h2>أحسنت يا بطل!</h2>
+    <p>معرفتك بحقوقك تحمي استقرارك واستقرار شركتك</p>
+    <button class="replay-btn" id="replayBtn">🔁 العب مرة أخرى</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- DRAWER TYPES ---------- */
+  const leaveTypes = [
+    {id:'annual',    icon:'🔋', label:'سنوية',  cls:'d-annual'},
+    {id:'emergency', icon:'🚨', label:'عارضة',  cls:'d-emergency'},
+    {id:'sick',      icon:'🩺', label:'مرضية',  cls:'d-sick'},
+    {id:'special',   icon:'🕋', label:'خاصة',   cls:'d-special'}
+  ];
+
+  /* ---------- SHARED STAT TABLES ---------- */
+  const annualStats = [
+    {num:'15', lab:'يوم أول سنة'},
+    {num:'21', lab:'يوم حتى 10 سنين'},
+    {num:'30', lab:'يوم بعد 10 سنين'},
+    {num:'45', lab:'يوم بعد 50 سنة'}
+  ];
+  const emergencyStats = [
+    {num:'7', lab:'أيام بس في السنة كلها'}
+  ];
+  const sickStats = [
+    {num:'3 شهور', lab:'بأجر كامل 100%'},
+    {num:'6 شهور', lab:'بنسبة 75% لمن تجاوز الخمسين'}
+  ];
+
+  function mkStats(base, highlightIdx){
+    return base.map((s,i)=> ({num:s.num, lab:s.lab, highlight: i===highlightIdx}));
+  }
+
+  /* ---------- SCENARIOS ---------- */
+  const scenarios = [
+    /* ===== 🔋 الإجازة السنوية ===== */
+    {
+      icon:'🏖️',
+      text:'عم مصطفى بقاله سنة شغال بجد، وعايز يسافر مع أسرته يريحوا أسبوع على البحر ويشحن طاقته',
+      correct:'annual',
+      title:'🔋 الإجازة السنوية',
+      stats: mkStats(annualStats, 0),
+      note:'📝 لازم تطلبها وتاخد موافقة رئيسك المباشر مقدماً'
+    },
+    {
+      icon:'🧱',
+      text:'الأسطى حسن عايز ياخد إجازة أسبوع عشان يبيّض شقته ويصلّح بيته بنفسه',
+      correct:'annual',
+      title:'🔋 الإجازة السنوية',
+      stats: mkStats(annualStats, 0),
+      note:'📝 اتفق مع رئيسك على الميعاد الأول عشان الشغل ما يتأثرش'
+    },
+    {
+      icon:'👴',
+      text:'عم إبراهيم بقاله 12 سنة في الشركة وبيسأل: أنا ليّا كام يوم إجازة في السنة؟',
+      correct:'annual',
+      title:'🔋 الإجازة السنوية',
+      stats: mkStats(annualStats, 2),
+      note:'⏳ خدمتك زادت عن 10 سنين... يبقى رصيدك زاد'
+    },
+    {
+      icon:'🏅',
+      text:'الريس عبد القادر سنّه عدى الـ 50 سنة وخدمته طويلة جداً، وبيستفسر عن رصيده',
+      correct:'annual',
+      title:'🔋 الإجازة السنوية',
+      stats: mkStats(annualStats, 3),
+      note:'🏅 تكريماً لسنين خدمتك الطويلة'
+    },
+
+    /* ===== 🚨 الإجازة العارضة ===== */
+    {
+      icon:'⚡',
+      text:'الأعمال ماشية تمام، لكن الأسطى حسين صحي الصبح لقى ماسورة المية ضربت والغرق للركب في البيت وما عرفش ينزل',
+      correct:'emergency',
+      title:'🚨 الإجازة العارضة',
+      stats: mkStats(emergencyStats, 0),
+      note:'⚠️ أهم شرط: تبلغ رئيسك المباشر أول ما تقدر'
+    },
+    {
+      icon:'🚗',
+      text:'عماد وهو جاي الشغل الصبح، عربية نقل خبطت عربيته واتعطل في المرور ولجان التحقيق',
+      correct:'emergency',
+      title:'🚨 الإجازة العارضة',
+      stats: mkStats(emergencyStats, 0),
+      note:'⚠️ ظروف مفاجئة ومينفعش تتوقعها قبلها'
+    },
+    {
+      icon:'🏥',
+      text:'الأسطى سيد وهو طالع من بيته الصبح، والده تعب فجأة واضطر ينقله المستشفى فوراً',
+      correct:'emergency',
+      title:'🚨 الإجازة العارضة',
+      stats: mkStats(emergencyStats, 0),
+      note:'⚠️ طوارئ شخصية بتمنع حضورك المفاجئ'
+    },
+
+    /* ===== 🩺 الإجازة المرضية ===== */
+    {
+      icon:'🤒',
+      text:'سعيد جاله دور برد شديد بسخونية وما قدرش يقف على رجليه، وراح كشف في التأمين الصحي',
+      correct:'sick',
+      title:'🩺 الإجازة المرضية',
+      stats: mkStats(sickStats, 0),
+      note:'📄 لازم تقرير من التأمين الصحي أو الجهة الطبية المعتمدة'
+    },
+    {
+      icon:'🏥',
+      text:'الأسطى العربي عمل عملية جراحية محتاجة راحة شهرين بتقرير من المجلس الطبي',
+      correct:'sick',
+      title:'🩺 الإجازة المرضية',
+      stats: mkStats(sickStats, 0),
+      note:'📄 بتقرير رسمي من المجلس الطبي المختص'
+    },
+    {
+      icon:'🦴',
+      text:'عم فتحي (عمره 52 سنة) محتاج فترة علاج وتأهيل طويلة بعد جراحة في العظام',
+      correct:'sick',
+      title:'🩺 الإجازة المرضية',
+      stats: mkStats(sickStats, 1),
+      note:'👴 سنّك فوق الخمسين بيدّيك مدة أطول للعلاج'
+    },
+
+    /* ===== 🕋 الإجازات الخاصة ===== */
+    {
+      icon:'🕋',
+      text:'الريس جمعة جاله جواب الحج ورايح يزور بيت الله الحرام لأول مرة في حياته',
+      correct:'special',
+      title:'🕋 إجازة الحج',
+      stats:[{num:'شهر واحد', lab:'مرة واحدة طول مدة الخدمة'}],
+      note:'💰 بأجر كامل بدون أي خصم'
+    },
+    {
+      icon:'👶',
+      text:'زميلتنا في الإدارة رزقها الله بطفل جديد وبتستعد لرعايته',
+      correct:'special',
+      title:'🕋 إجازة الوضع',
+      stats:[{num:'إجازة وضع', lab:'مدفوعة الأجر بالكامل'}],
+      note:'⚖️ وفقاً للقانون واللوائح المعمول بها'
+    },
+    {
+      icon:'🗳️',
+      text:'أحمد عامل فني بيكمّل دراسته وعنده امتحانات مؤهل رسمي أو استدعاء رسمي',
+      correct:'special',
+      title:'🕋 إجازة خاصة',
+      stats:[{num:'إجازة خاصة', lab:'لأسباب تعليمية أو وطنية معتمدة'}],
+      note:'📚 بأجر كامل بموافقة الجهة المختصة'
+    },
+    {
+      icon:'💍',
+      text:'الفني كريم فرحه الأسبوع الجاي وبيجهّز كروت الدعوة لزمايله في الشغل',
+      correct:'special',
+      title:'🕋 إجازة مناسبة',
+      stats:[{num:'إجازة زواج', lab:'حسب لائحة الشركة'}],
+      note:'🎉 مبروك مقدماً يا كريم!'
+    }
+  ];
+
+  /* ---------- SHUFFLE (Fisher–Yates) ---------- */
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  let deck = shuffle(scenarios);
+
+  /* ---------- STATE ---------- */
+  let current = 0;
+  let locked = false;
+
+  /* ---------- DOM REFS ---------- */
+  const cardEl = document.getElementById('challengeCard');
+  const cardIcon = document.getElementById('cardIcon');
+  const cardText = document.getElementById('cardText');
+  const speakBtn = document.getElementById('speakBtn');
+  const drawersEl = document.getElementById('drawers');
+  const progressFill = document.getElementById('progressFill');
+  const progressCount = document.getElementById('progressCount');
+  const reinforceOverlay = document.getElementById('reinforceOverlay');
+  const reinforceTitle = document.getElementById('reinforceTitle');
+  const reinforceStats = document.getElementById('reinforceStats');
+  const reinforceNote = document.getElementById('reinforceNote');
+  const nextBtn = document.getElementById('nextBtn');
+  const finalOverlay = document.getElementById('finalOverlay');
+  const replayBtn = document.getElementById('replayBtn');
+
+  /* ---------- BUILD DRAWERS ---------- */
+  leaveTypes.forEach(t=>{
+    const btn = document.createElement('button');
+    btn.className = 'drawer ' + t.cls;
+    btn.dataset.id = t.id;
+    btn.setAttribute('aria-label', t.label);
+    btn.innerHTML = `<div class="handle"></div><span class="icon">${t.icon}</span><span class="label">${t.label}</span>`;
+    btn.addEventListener('click', ()=> handleAnswer(t.id, btn));
+    drawersEl.appendChild(btn);
+  });
+
+  /* ---------- PROGRESS ---------- */
+  function updateProgress(){
+    const total = deck.length;
+    const done = Math.min(current, total);
+    progressFill.style.width = (done/total*100) + '%';
+    progressCount.textContent = (Math.min(current+1,total)) + ' / ' + total;
+  }
+
+  /* ---------- LOAD SCENARIO ---------- */
+  function loadScenario(i){
+    locked = false;
+    const s = deck[i];
+    cardIcon.textContent = s.icon;
+    cardText.textContent = s.text;
+    cardEl.style.transform = '';
+    updateProgress();
+  }
+
+  /* ---------- SPEECH ---------- */
+  let voicesReady = [];
+  function primeVoices(){
+    if('speechSynthesis' in window){
+      voicesReady = window.speechSynthesis.getVoices();
+    }
+  }
+  if('speechSynthesis' in window){
+    primeVoices();
+    window.speechSynthesis.onvoiceschanged = primeVoices;
+  }
+
+  function speakCurrent(){
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const s = deck[current];
+    const utter = new SpeechSynthesisUtterance(s.text);
+    utter.lang = 'ar-EG';
+    utter.rate = 0.92;
+    utter.pitch = 1;
+    const arVoice = voicesReady.find(v => v.lang && v.lang.toLowerCase().startsWith('ar'));
+    if(arVoice) utter.voice = arVoice;
+    utter.onstart = ()=> speakBtn.classList.add('speaking');
+    utter.onend = ()=> speakBtn.classList.remove('speaking');
+    window.speechSynthesis.speak(utter);
+  }
+  speakBtn.addEventListener('click', speakCurrent);
+
+  /* ---------- AUDIO (Web Audio API) ---------- */
+  let audioCtx = null;
+  function getCtx(){
+    if(!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) audioCtx = new AC();
+    }
+    return audioCtx;
+  }
+  function playTone(freq, start, duration, type, peak){
+    const ctx = getCtx();
+    if(!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const t0 = ctx.currentTime + start;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(peak || 0.2, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.05);
+  }
+  function playSuccessSound(){
+    playTone(523.25, 0,    0.16, 'triangle', 0.25);
+    playTone(659.25, 0.12, 0.16, 'triangle', 0.25);
+    playTone(783.99, 0.24, 0.28, 'triangle', 0.3);
+  }
+  function playErrorSound(){
+    playTone(220, 0,    0.18, 'sawtooth', 0.18);
+    playTone(170, 0.15, 0.28, 'sawtooth', 0.18);
+  }
+
+  /* ---------- CONFETTI ---------- */
+  const confettiColors = ['#2ECC71','#F5A623','#EF476F','#7C6AE8','#FFCC00','#ffffff'];
+  function burstConfetti(){
+    for(let i=0;i<36;i++){
+      const p = document.createElement('div');
+      p.className = 'confetti-piece';
+      p.style.left = (Math.random()*100) + 'vw';
+      p.style.background = confettiColors[Math.floor(Math.random()*confettiColors.length)];
+      p.style.animationDuration = (1.1 + Math.random()*0.9) + 's';
+      p.style.animationDelay = (Math.random()*0.25) + 's';
+      document.body.appendChild(p);
+      setTimeout(()=> p.remove(), 2400);
+    }
+  }
+
+  /* ---------- ANSWER HANDLING ---------- */
+  function handleAnswer(chosenId, drawerEl){
+    if(locked) return;
+    const s = deck[current];
+    if(chosenId === s.correct){
+      locked = true;
+      if(navigator.vibrate) navigator.vibrate(60);
+      drawerEl.classList.add('correct-flash');
+      setTimeout(()=> drawerEl.classList.remove('correct-flash'), 500);
+      playSuccessSound();
+      burstConfetti();
+      showReinforcement(s);
+    } else {
+      if(navigator.vibrate) navigator.vibrate([40,40,40]);
+      drawerEl.classList.add('wrong-flash');
+      cardEl.classList.add('shake');
+      setTimeout(()=>{
+        drawerEl.classList.remove('wrong-flash');
+        cardEl.classList.remove('shake');
+      }, 500);
+      playErrorSound();
+    }
+  }
+
+  /* ---------- REINFORCEMENT MODAL ---------- */
+  function showReinforcement(s){
+    reinforceTitle.textContent = s.title;
+    reinforceStats.innerHTML = '';
+    reinforceStats.className = 'stat-grid' + (s.stats.length === 1 ? ' single' : '');
+    s.stats.forEach(st=>{
+      const div = document.createElement('div');
+      div.className = 'stat' + (st.highlight ? ' highlight' : '');
+      div.innerHTML = `<span class="num">${st.num}</span><span class="lab">${st.lab}</span>`;
+      reinforceStats.appendChild(div);
+    });
+    reinforceNote.textContent = s.note;
+    reinforceOverlay.classList.add('show');
+  }
+
+  nextBtn.addEventListener('click', ()=>{
+    reinforceOverlay.classList.remove('show');
+    current++;
+    if(current >= deck.length){
+      updateProgress();
+      setTimeout(()=>{
+        finalOverlay.classList.add('show');
+        burstConfetti();
+      }, 150);
+    } else {
+      loadScenario(current);
+    }
+  });
+
+  replayBtn.addEventListener('click', ()=>{
+    finalOverlay.classList.remove('show');
+    deck = shuffle(scenarios);
+    current = 0;
+    loadScenario(0);
+  });
+
+  /* ---------- POINTER-BASED DRAG (mouse + touch, unified) ---------- */
+  let dragging = false;
+  let ghostEl = null;
+  let startX = 0, startY = 0, moved = false;
+
+  cardEl.addEventListener('pointerdown', (e)=>{
+    if(locked) return;
+    dragging = true;
+    moved = false;
+    startX = e.clientX; startY = e.clientY;
+    ghostEl = document.createElement('div');
+    ghostEl.className = 'ghost';
+    ghostEl.textContent = cardIcon.textContent;
+    document.body.appendChild(ghostEl);
+    positionGhost(e.clientX, e.clientY);
+    cardEl.classList.add('dragging');
+    cardEl.setPointerCapture && cardEl.setPointerCapture(e.pointerId);
+  });
+
+  cardEl.addEventListener('pointermove', (e)=>{
+    if(!dragging) return;
+    if(Math.abs(e.clientX-startX) > 6 || Math.abs(e.clientY-startY) > 6) moved = true;
+    positionGhost(e.clientX, e.clientY);
+    highlightDrawerAt(e.clientX, e.clientY);
+  });
+
+  function endDrag(e){
+    if(!dragging) return;
+    dragging = false;
+    cardEl.classList.remove('dragging');
+    clearDrawerHighlights();
+    if(ghostEl){ ghostEl.remove(); ghostEl = null; }
+    if(moved){
+      const target = document.elementFromPoint(e.clientX, e.clientY);
+      const drawer = target ? target.closest('.drawer') : null;
+      if(drawer) handleAnswer(drawer.dataset.id, drawer);
+    }
+  }
+  cardEl.addEventListener('pointerup', endDrag);
+  cardEl.addEventListener('pointercancel', endDrag);
+
+  function positionGhost(x,y){
+    if(ghostEl){ ghostEl.style.left = x+'px'; ghostEl.style.top = y+'px'; }
+  }
+  function highlightDrawerAt(x,y){
+    clearDrawerHighlights();
+    const el = document.elementFromPoint(x,y);
+    const drawer = el ? el.closest('.drawer') : null;
+    if(drawer) drawer.classList.add('drop-target-active');
+  }
+  function clearDrawerHighlights(){
+    document.querySelectorAll('.drop-target-active').forEach(d=> d.classList.remove('drop-target-active'));
+  }
+
+  /* ---------- INIT ---------- */
+  loadScenario(0);
+})();
+</script>
+
+</body>
+</html>
