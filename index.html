@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>معرض الحقوق والالتزامات</title>
+<style>
+  :root{
+    --bg:#141826;
+    --bg-2:#1b2136;
+    --card:#fbf7ee;
+    --card-ink:#221c15;
+    --right-1:#1f6e4a;
+    --right-2:#0f4a30;
+    --duty-1:#4a2f82;
+    --duty-2:#2a1a55;
+    --gold:#f4b93e;
+    --gold-2:#e0932a;
+    --danger:#e3543f;
+    --line:rgba(244,185,62,0.35);
+    --ok-glow:#4fe08a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #232a44 0%, var(--bg) 55%),
+      var(--bg);
+    color:#f3efe4;
+    font-family:'Segoe UI','Tahoma','Geeza Pro','Arial',sans-serif;
+    overflow:hidden;
+    user-select:none;
+  }
+  #app{
+    position:relative;
+    height:100vh;
+    width:100vw;
+    display:flex;
+    flex-direction:column;
+    padding:14px 18px 10px;
+  }
+
+  /* ---------- HEADER ---------- */
+  header{
+    text-align:center;
+    flex:0 0 auto;
+    margin-bottom:8px;
+    position:relative;
+  }
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    letter-spacing:1px;
+    color:var(--gold);
+    background:rgba(244,185,62,0.08);
+    border:1px solid var(--line);
+    padding:4px 16px;
+    border-radius:999px;
+    margin-bottom:6px;
+  }
+  h1{
+    margin:0;
+    font-size:clamp(24px,3.4vw,40px);
+    font-weight:800;
+    letter-spacing:.5px;
+    text-shadow:0 2px 12px rgba(0,0,0,.4);
+  }
+  h1 .scale{
+    display:inline-block;
+    animation: tilt 3.2s ease-in-out infinite;
+    transform-origin:50% 20%;
+  }
+  @keyframes tilt{
+    0%,100%{transform:rotate(0deg)}
+    25%{transform:rotate(-9deg)}
+    75%{transform:rotate(9deg)}
+  }
+  .subtitle{
+    margin-top:6px;
+    font-size:clamp(13px,1.4vw,17px);
+    color:#c9c4b6;
+  }
+
+  /* ---------- PROGRESS ---------- */
+  .progress-wrap{
+    max-width:640px;
+    margin:10px auto 0;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex:0 0 auto;
+  }
+  .progress-track{
+    flex:1;
+    height:10px;
+    border-radius:999px;
+    background:rgba(255,255,255,0.08);
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,0.08);
+  }
+  .progress-fill{
+    height:100%;
+    width:0%;
+    border-radius:999px;
+    background:linear-gradient(90deg,var(--gold-2),var(--gold));
+    transition:width .5s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 0 12px rgba(244,185,62,.6);
+  }
+  .progress-label{
+    font-size:13px;
+    color:#d7d2c4;
+    white-space:nowrap;
+    font-weight:600;
+  }
+
+  /* ---------- MAIN GAME AREA ---------- */
+  main{
+    flex:1 1 auto;
+    display:grid;
+    grid-template-columns:1fr minmax(260px,420px) 1fr;
+    gap:16px;
+    min-height:0;
+    margin-top:10px;
+  }
+
+  .zone{
+    border-radius:22px;
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    padding:14px 12px;
+    min-height:0;
+    transition:box-shadow .25s, transform .15s;
+    border:2px solid transparent;
+  }
+  .zone-title{
+    text-align:center;
+    font-size:clamp(15px,1.7vw,20px);
+    font-weight:800;
+    margin-bottom:8px;
+    text-shadow:0 2px 6px rgba(0,0,0,.35);
+  }
+  .zone-body{
+    flex:1;
+    border-radius:16px;
+    border:2px dashed rgba(255,255,255,0.25);
+    display:flex;
+    flex-wrap:wrap;
+    align-content:flex-start;
+    gap:8px;
+    padding:10px;
+    overflow-y:auto;
+  }
+  .zone-hint{
+    margin:auto;
+    font-size:13px;
+    opacity:.6;
+    text-align:center;
+  }
+  .zone.rights{
+    background:linear-gradient(160deg,var(--right-1),var(--right-2));
+  }
+  .zone.duties{
+    background:linear-gradient(160deg,var(--duty-1),var(--duty-2));
+  }
+  .zone.drag-over{
+    box-shadow:0 0 0 4px rgba(255,255,255,.55), 0 0 40px rgba(255,255,255,.25);
+    transform:scale(1.02);
+  }
+  .placed-chip{
+    background:rgba(255,255,255,0.14);
+    border:1px solid rgba(255,255,255,0.25);
+    border-radius:12px;
+    padding:6px 10px;
+    font-size:13px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    animation:chip-in .35s ease;
+  }
+  @keyframes chip-in{
+    from{opacity:0; transform:translateY(-8px) scale(.8);}
+    to{opacity:1; transform:translateY(0) scale(1);}
+  }
+
+  /* ---------- CENTER STAGE ---------- */
+  .stage{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    min-height:0;
+    position:relative;
+  }
+  .card-hook{
+    width:3px;
+    height:22px;
+    background:linear-gradient(var(--gold),transparent);
+    margin-bottom:-2px;
+    opacity:.8;
+  }
+  .card{
+    background:var(--card);
+    color:var(--card-ink);
+    width:min(300px,90%);
+    aspect-ratio:1/1.05;
+    border-radius:20px;
+    box-shadow:0 18px 40px rgba(0,0,0,.45), 0 0 0 6px rgba(244,185,62,0.18);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:22px 18px;
+    cursor:grab;
+    touch-action:none;
+    position:relative;
+    transition:transform .18s ease, box-shadow .18s ease;
+    border-top:6px solid var(--gold);
+  }
+  .card:active{cursor:grabbing;}
+  .card.dragging{
+    box-shadow:0 30px 60px rgba(0,0,0,.55), 0 0 0 6px rgba(244,185,62,0.3);
+    z-index:50;
+  }
+  .card .badge{
+    position:absolute;
+    top:-14px;
+    right:50%;
+    transform:translateX(50%);
+    background:var(--gold);
+    color:#241a05;
+    font-size:11px;
+    font-weight:800;
+    padding:3px 12px;
+    border-radius:999px;
+    box-shadow:0 4px 10px rgba(0,0,0,.3);
+    white-space:nowrap;
+  }
+  .card .icon{
+    font-size:64px;
+    line-height:1;
+    margin-bottom:14px;
+    filter:drop-shadow(0 4px 6px rgba(0,0,0,.15));
+  }
+  .card .title{
+    font-size:19px;
+    font-weight:800;
+    line-height:1.35;
+  }
+  .card.shake{
+    animation:shake .5s;
+  }
+  @keyframes shake{
+    10%,90%{transform:translateX(-2px) rotate(-1deg);}
+    20%,80%{transform:translateX(4px) rotate(1deg);}
+    30%,50%,70%{transform:translateX(-8px) rotate(-2deg);}
+    40%,60%{transform:translateX(8px) rotate(2deg);}
+  }
+  .card.correct-flash{
+    box-shadow:0 0 0 8px rgba(79,224,138,.55), 0 20px 50px rgba(0,0,0,.4);
+  }
+  .card.flying-right{
+    transform:translateX(-120%) scale(.5) rotate(10deg);
+    opacity:0;
+  }
+  .card.flying-left{
+    transform:translateX(120%) scale(.5) rotate(-10deg);
+    opacity:0;
+  }
+
+  .btn-row{
+    display:flex;
+    gap:14px;
+    margin-top:18px;
+  }
+  .choice-btn{
+    border:none;
+    border-radius:14px;
+    padding:12px 22px;
+    font-size:15px;
+    font-weight:800;
+    cursor:pointer;
+    color:#fff;
+    box-shadow:0 8px 18px rgba(0,0,0,.3);
+    transition:transform .12s ease, filter .12s ease;
+    font-family:inherit;
+  }
+  .choice-btn:active{transform:scale(.94);}
+  .choice-btn.rights-btn{background:linear-gradient(160deg,var(--right-1),var(--right-2));}
+  .choice-btn.duties-btn{background:linear-gradient(160deg,var(--duty-1),var(--duty-2));}
+  .choice-btn:hover{filter:brightness(1.12);}
+
+  .feedback{
+    position:absolute;
+    bottom:-8px;
+    transform:translateY(100%);
+    max-width:320px;
+    background:rgba(20,24,38,0.96);
+    border:1px solid var(--line);
+    color:#f3efe4;
+    padding:12px 16px;
+    border-radius:14px;
+    font-size:14px;
+    text-align:center;
+    box-shadow:0 12px 30px rgba(0,0,0,.5);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .25s, transform .25s;
+  }
+  .feedback.show{
+    opacity:1;
+    transform:translateY(115%);
+  }
+  .feedback.wrong{border-color:rgba(227,84,63,.6);}
+  .feedback .fb-icon{font-size:20px; margin-left:6px;}
+
+  /* ---------- END SCREEN ---------- */
+  .end-screen{
+    position:fixed;
+    inset:0;
+    background:radial-gradient(1200px 700px at 50% 20%, #2a2140 0%, #10101c 70%);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    text-align:center;
+    z-index:200;
+    padding:20px;
+  }
+  .end-screen.show{display:flex;}
+  .end-emoji{font-size:74px; margin-bottom:6px; animation:pop-in .5s;}
+  @keyframes pop-in{
+    0%{transform:scale(0); opacity:0;}
+    70%{transform:scale(1.15);}
+    100%{transform:scale(1); opacity:1;}
+  }
+  .end-screen h2{
+    font-size:clamp(24px,4vw,38px);
+    margin:6px 0 14px;
+    color:var(--gold);
+  }
+  .end-screen p{
+    max-width:560px;
+    font-size:clamp(15px,2vw,19px);
+    line-height:1.7;
+    color:#e9e4d6;
+    margin-bottom:26px;
+  }
+  .restart-btn{
+    border:none;
+    background:linear-gradient(160deg,var(--gold),var(--gold-2));
+    color:#241a05;
+    font-weight:800;
+    font-size:17px;
+    padding:14px 34px;
+    border-radius:16px;
+    cursor:pointer;
+    box-shadow:0 12px 26px rgba(244,185,62,.35);
+    transition:transform .12s;
+    font-family:inherit;
+  }
+  .restart-btn:active{transform:scale(.95);}
+
+  #confetti-canvas{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    z-index:150;
+  }
+
+  /* small screens: stack vertically */
+  @media (max-width:760px){
+    main{
+      grid-template-columns:1fr;
+      grid-template-rows:auto 1fr auto;
+      gap:10px;
+    }
+    .zone{padding:8px;}
+    .zone-body{min-height:70px;}
+    .card{width:min(240px,80%);}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<div id="app">
+  <header>
+    <div class="eyebrow">معرض التدريب • دورة الشراكة الميدانية</div>
+    <h1><span class="scale">⚖️</span> لعبة التوازن: حقوقي والتزاماتي</h1>
+    <div class="subtitle">اسحب البطاقة أو اضغط عليها وضعها في المكان الصحيح</div>
+  </header>
+
+  <div class="progress-wrap">
+    <div class="progress-label" id="progressLabel">10 بطاقات متبقية</div>
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <main>
+    <section class="zone rights" id="rightsZone">
+      <div class="zone-title">🟢 حقوقي ومزاياي الوظيفية</div>
+      <div class="zone-body" id="rightsBody">
+        <div class="zone-hint">ستظهر هنا حقوقك كل ما تتعرف عليها</div>
+      </div>
+    </section>
+
+    <div class="stage">
+      <div class="card-hook"></div>
+      <div class="card" id="card" draggable="true">
+        <div class="badge" id="cardBadge">بطاقة 1 من 10</div>
+        <div class="icon" id="cardIcon">💰</div>
+        <div class="title" id="cardTitle">المرتب والبدلات</div>
+        <div class="feedback" id="feedback"></div>
+      </div>
+      <div class="btn-row">
+        <button class="choice-btn rights-btn" id="btnRights">🟢 حقوق</button>
+        <button class="choice-btn duties-btn" id="btnDuties">🔴 التزامات</button>
+      </div>
+    </div>
+
+    <section class="zone duties" id="dutiesZone">
+      <div class="zone-title">🔴 التزاماتي ومسؤولياتي</div>
+      <div class="zone-body" id="dutiesBody">
+        <div class="zone-hint">ستظهر هنا التزاماتك كل ما تتعرف عليها</div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="end-screen" id="endScreen">
+  <div class="end-emoji">🏆</div>
+  <h2>أحسنت يا بطل!</h2>
+  <p>التوازن بين الحقوق والالتزامات هو سر نجاحنا واستقرار بيتنا الكبير.</p>
+  <button class="restart-btn" id="restartBtn">🔁 إعادة اللعبة</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= DATA ================= */
+  const CARDS = [
+    {type:'right', icon:'💰', title:'المرتب والبدلات', explain:'المرتب والبدلات والحوافز مقابل عملك.'},
+    {type:'right', icon:'🩺', title:'الرعاية الطبية والتأمين الصحي', explain:'علاجك وعلاج أسرتك حق أصيل.'},
+    {type:'right', icon:'🏖️', title:'الإجازات السنوية والمرضية', explain:'الراحة واستعادة النشاط حق لك.'},
+    {type:'right', icon:'🛡️', title:'توفير مهمات السلامة والأمان', explain:'الشركة ملزمة بتوفير بيئة عمل آمنة لك.'},
+    {type:'right', icon:'🎓', title:'التدريب وتطوير المهارات', explain:'تطوير قدراتك يرفع قيمتك المهنية.'},
+    {type:'right', icon:'⚖️', title:'المعاملة العادلة وعدم التمييز', explain:'التعامل بعدالة ومساواة حق لكل موظف.'},
+    {type:'right', icon:'🗣️', title:'حق التعبير وتقديم المقترحات', explain:'رأيك مسموع ويسهم في تطوير العمل.'},
+    {type:'duty', icon:'⏰', title:'الانضباط بمواعيد العمل', explain:'الحضور والانصراف في الموعد أساس النجاح.'},
+    {type:'duty', icon:'🦺', title:'ارتداء مهمات الوقاية الشخصية', explain:'التزامك بالخوذة والسترة يحمي حياتك أولاً.'},
+    {type:'duty', icon:'🤝', title:'احترام الزملاء والمواطنين', explain:'حُسن المعاملة والأخلاق تعكس معدنك الطيب.'},
+    {type:'duty', icon:'⚙️', title:'الحفاظ على المعدات والسيارات', explain:'الأدوات والمعدات أمانة في يدك.'},
+    {type:'duty', icon:'🔒', title:'الحفاظ على أسرار العمل', explain:'النزاهة والأمانة أساس الاستمرار.'},
+    {type:'duty', icon:'🧹', title:'الحفاظ على نظافة وترتيب موقع العمل', explain:'بيئة عمل نظيفة تعكس احترافيتك.'},
+    {type:'duty', icon:'📢', title:'الإبلاغ عن الأعطال والمخاطر فوراً', explain:'الإبلاغ السريع يحمي الجميع من الأخطار.'}
+  ];
+
+  /* ================= STATE ================= */
+  let deck = [];
+  let currentIndex = 0;
+  let total = 0;
+  let isAnimating = false;
+
+  /* ================= DOM ================= */
+  const cardEl = document.getElementById('card');
+  const cardIcon = document.getElementById('cardIcon');
+  const cardTitle = document.getElementById('cardTitle');
+  const cardBadge = document.getElementById('cardBadge');
+  const feedbackEl = document.getElementById('feedback');
+  const rightsZone = document.getElementById('rightsZone');
+  const dutiesZone = document.getElementById('dutiesZone');
+  const rightsBody = document.getElementById('rightsBody');
+  const dutiesBody = document.getElementById('dutiesBody');
+  const progressFill = document.getElementById('progressFill');
+  const progressLabel = document.getElementById('progressLabel');
+  const endScreen = document.getElementById('endScreen');
+  const btnRights = document.getElementById('btnRights');
+  const btnDuties = document.getElementById('btnDuties');
+  const restartBtn = document.getElementById('restartBtn');
+
+  /* ================= AUDIO (Web Audio API, no external files) ================= */
+  let audioCtx = null;
+  function ctx(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+  }
+  function tone(freq, start, dur, type, gainPeak){
+    const c = ctx();
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0, c.currentTime + start);
+    gain.gain.linearRampToValueAtTime(gainPeak || 0.18, c.currentTime + start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, c.currentTime + start + dur);
+    osc.connect(gain).connect(c.destination);
+    osc.start(c.currentTime + start);
+    osc.stop(c.currentTime + start + dur + 0.05);
+  }
+  function playCorrect(){
+    try{
+      tone(523.25, 0, 0.16, 'triangle', 0.2);
+      tone(659.25, 0.12, 0.16, 'triangle', 0.2);
+      tone(783.99, 0.24, 0.28, 'triangle', 0.22);
+    }catch(e){}
+  }
+  function playWrong(){
+    try{
+      tone(220, 0, 0.18, 'sawtooth', 0.15);
+      tone(160, 0.1, 0.22, 'sawtooth', 0.15);
+    }catch(e){}
+  }
+  function playClick(){
+    try{ tone(880, 0, 0.06, 'square', 0.06); }catch(e){}
+  }
+  function playFinale(){
+    try{
+      [523.25,659.25,783.99,1046.5].forEach((f,i)=>tone(f, i*0.13, 0.3, 'triangle', 0.2));
+    }catch(e){}
+  }
+
+  /* ================= CONFETTI ================= */
+  const confettiCanvas = document.getElementById('confetti-canvas');
+  const cctx = confettiCanvas.getContext('2d');
+  let confettiParticles = [];
+  let confettiRunning = false;
+
+  function resizeCanvas(){
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  const CONFETTI_COLORS = ['#f4b93e','#4fe08a','#4a90e2','#e3543f','#c084fc','#ffffff'];
+
+  function burstConfetti(x, y, count){
+    for(let i=0;i<count;i++){
+      const angle = Math.random()*Math.PI*2;
+      const speed = 2 + Math.random()*5;
+      confettiParticles.push({
+        x, y,
+        vx: Math.cos(angle)*speed,
+        vy: Math.sin(angle)*speed - 3,
+        size: 5 + Math.random()*5,
+        color: CONFETTI_COLORS[Math.floor(Math.random()*CONFETTI_COLORS.length)],
+        rot: Math.random()*360,
+        vrot: (Math.random()-0.5)*14,
+        life: 0,
+        maxLife: 70 + Math.random()*30
+      });
+    }
+    if(!confettiRunning){
+      confettiRunning = true;
+      requestAnimationFrame(animateConfetti);
+    }
+  }
+
+  function animateConfetti(){
+    cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+    confettiParticles.forEach(p=>{
+      p.vy += 0.12;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vrot;
+      p.life++;
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot*Math.PI/180);
+      cctx.fillStyle = p.color;
+      const fade = Math.max(0, 1 - p.life/p.maxLife);
+      cctx.globalAlpha = fade;
+      cctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.6);
+      cctx.restore();
+    });
+    confettiParticles = confettiParticles.filter(p=>p.life < p.maxLife);
+    if(confettiParticles.length > 0){
+      requestAnimationFrame(animateConfetti);
+    } else {
+      confettiRunning = false;
+      cctx.clearRect(0,0,confettiCanvas.width, confettiCanvas.height);
+    }
+  }
+
+  /* ================= GAME LOGIC ================= */
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+
+  function initGame(){
+    deck = shuffle(CARDS);
+    total = deck.length;
+    currentIndex = 0;
+    isAnimating = false;
+    rightsBody.innerHTML = '<div class="zone-hint">ستظهر هنا حقوقك كل ما تتعرف عليها</div>';
+    dutiesBody.innerHTML = '<div class="zone-hint">ستظهر هنا التزاماتك كل ما تتعرف عليها</div>';
+    endScreen.classList.remove('show');
+    cardEl.style.display = 'flex';
+    document.querySelector('.btn-row').style.display = 'flex';
+    updateProgress();
+    renderCard();
+  }
+
+  function updateProgress(){
+    const done = currentIndex;
+    const remaining = total - done;
+    const pct = (done/total)*100;
+    progressFill.style.width = pct + '%';
+    progressLabel.textContent = remaining + ' ' + (remaining === 1 ? 'بطاقة متبقية' : 'بطاقات متبقية');
+  }
+
+  function renderCard(){
+    if(currentIndex >= total){
+      showEndScreen();
+      return;
+    }
+    const c = deck[currentIndex];
+    cardEl.className = 'card';
+    cardIcon.textContent = c.icon;
+    cardTitle.textContent = c.title;
+    cardBadge.textContent = 'بطاقة ' + (currentIndex+1) + ' من ' + total;
+    feedbackEl.className = 'feedback';
+    feedbackEl.textContent = '';
+    cardEl.setAttribute('draggable','true');
+    isAnimating = false;
+  }
+
+  function cardCenter(){
+    const r = cardEl.getBoundingClientRect();
+    return {x: r.left + r.width/2, y: r.top + r.height/2};
+  }
+
+  function addChip(zoneBody, c){
+    const hint = zoneBody.querySelector('.zone-hint');
+    if(hint) hint.remove();
+    const chip = document.createElement('div');
+    chip.className = 'placed-chip';
+    chip.innerHTML = '<span>'+c.icon+'</span><span>'+c.title+'</span>';
+    zoneBody.appendChild(chip);
+  }
+
+  function showFeedback(text, isWrong){
+    feedbackEl.textContent = text;
+    feedbackEl.className = 'feedback show' + (isWrong ? ' wrong' : '');
+  }
+
+  function handleAnswer(choice){
+    if(isAnimating || currentIndex >= total) return;
+    const c = deck[currentIndex];
+    const correct = (choice === c.type);
+
+    if(correct){
+      isAnimating = true;
+      const zone = choice === 'right' ? rightsZone : dutiesZone;
+      const zoneBody = choice === 'right' ? rightsBody : dutiesBody;
+
+      zone.classList.add('drag-over');
+      cardEl.classList.add('correct-flash');
+      playCorrect();
+
+      const pos = cardCenter();
+      burstConfetti(pos.x, pos.y, 45);
+
+      showFeedback('✅ صحيح! ' + c.explain, false);
+
+      setTimeout(()=>{
+        cardEl.classList.add(choice === 'right' ? 'flying-right' : 'flying-left');
+      }, 550);
+
+      setTimeout(()=>{
+        zone.classList.remove('drag-over');
+        addChip(zoneBody, c);
+        currentIndex++;
+        updateProgress();
+        renderCard();
+      }, 1250);
+
+    } else {
+      cardEl.classList.remove('shake');
+      void cardEl.offsetWidth;
+      cardEl.classList.add('shake');
+      playWrong();
+      showFeedback('❌ حاول مرة أخرى، هذه ليست في هذه الخانة', true);
+      setTimeout(()=>{
+        cardEl.classList.remove('shake');
+      }, 500);
+    }
+  }
+
+  function showEndScreen(){
+    cardEl.style.display = 'none';
+    document.querySelector('.btn-row').style.display = 'none';
+    endScreen.classList.add('show');
+    playFinale();
+    setTimeout(()=>{
+      const w = window.innerWidth;
+      burstConfetti(w*0.2, 80, 40);
+      burstConfetti(w*0.5, 40, 50);
+      burstConfetti(w*0.8, 80, 40);
+    }, 150);
+  }
+
+  /* ================= BUTTON INPUTS ================= */
+  btnRights.addEventListener('click', ()=>{ playClick(); handleAnswer('right'); });
+  btnDuties.addEventListener('click', ()=>{ playClick(); handleAnswer('duty'); });
+  restartBtn.addEventListener('click', initGame);
+
+  /* ================= NATIVE DRAG & DROP (mouse / desktop) ================= */
+  cardEl.addEventListener('dragstart', (e)=>{
+    if(isAnimating){ e.preventDefault(); return; }
+    cardEl.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try{ e.dataTransfer.setData('text/plain','card'); }catch(err){}
+  });
+  cardEl.addEventListener('dragend', ()=>{
+    cardEl.classList.remove('dragging');
+    rightsZone.classList.remove('drag-over');
+    dutiesZone.classList.remove('drag-over');
+  });
+
+  [ [rightsZone,'right'], [dutiesZone,'duty'] ].forEach(([zone, kind])=>{
+    zone.addEventListener('dragover', (e)=>{
+      e.preventDefault();
+      zone.classList.add('drag-over');
+    });
+    zone.addEventListener('dragleave', ()=>{
+      zone.classList.remove('drag-over');
+    });
+    zone.addEventListener('drop', (e)=>{
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      handleAnswer(kind);
+    });
+  });
+
+  /* ================= POINTER DRAG (works for touch + mouse, more reliable) ================= */
+  let pointerDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+  let cardOffsetX = 0, cardOffsetY = 0;
+
+  cardEl.addEventListener('pointerdown', (e)=>{
+    if(isAnimating) return;
+    pointerDragging = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    cardEl.setPointerCapture(e.pointerId);
+    cardEl.style.transition = 'none';
+  });
+
+  cardEl.addEventListener('pointermove', (e)=>{
+    if(!pointerDragging) return;
+    cardOffsetX = e.clientX - dragStartX;
+    cardOffsetY = e.clientY - dragStartY;
+    cardEl.style.transform = 'translate(' + cardOffsetX + 'px,' + cardOffsetY + 'px) rotate(' + (cardOffsetX*0.03) + 'deg)';
+
+    const rZoneRect = rightsZone.getBoundingClientRect();
+    const dZoneRect = dutiesZone.getBoundingClientRect();
+    const cx = e.clientX, cy = e.clientY;
+
+    const overRight = cx >= rZoneRect.left && cx <= rZoneRect.right && cy >= rZoneRect.top && cy <= rZoneRect.bottom;
+    const overDuty = cx >= dZoneRect.left && cx <= dZoneRect.right && cy >= dZoneRect.top && cy <= dZoneRect.bottom;
+    rightsZone.classList.toggle('drag-over', overRight);
+    dutiesZone.classList.toggle('drag-over', overDuty);
+  });
+
+  function endPointerDrag(e){
+    if(!pointerDragging) return;
+    pointerDragging = false;
+    cardEl.style.transition = '';
+
+    const rZoneRect = rightsZone.getBoundingClientRect();
+    const dZoneRect = dutiesZone.getBoundingClientRect();
+    const cx = e.clientX, cy = e.clientY;
+    const overRight = cx >= rZoneRect.left && cx <= rZoneRect.right && cy >= rZoneRect.top && cy <= rZoneRect.bottom;
+    const overDuty = cx >= dZoneRect.left && cx <= dZoneRect.right && cy >= dZoneRect.top && cy <= dZoneRect.bottom;
+
+    rightsZone.classList.remove('drag-over');
+    dutiesZone.classList.remove('drag-over');
+
+    const moved = Math.abs(cardOffsetX) > 6 || Math.abs(cardOffsetY) > 6;
+
+    if(overRight && moved){
+      cardEl.style.transform = '';
+      handleAnswer('right');
+    } else if(overDuty && moved){
+      cardEl.style.transform = '';
+      handleAnswer('duty');
+    } else {
+      // snap back
+      cardEl.style.transform = '';
+    }
+    cardOffsetX = 0; cardOffsetY = 0;
+  }
+
+  cardEl.addEventListener('pointerup', endPointerDrag);
+  cardEl.addEventListener('pointercancel', endPointerDrag);
+
+  /* ================= INIT ================= */
+  initGame();
+
+})();
+</script>
+</body>
+</html>
